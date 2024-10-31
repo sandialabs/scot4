@@ -29,7 +29,7 @@ spec:
       {{- if eq .Values.scot4.api.fakedata "true" }}
       - name: scot4-api-fake-data
         imagePullPolicy: {{ .Values.scot4.api.imagePullPolicy }}
-        image: "{{ .Values.scot4.api.repository }}:{{ .Values.scot4.api.tag }}-util"
+        image: "{{ .Values.scot4.api.repository }}-util:{{ .Values.scot4.api.tag }}"
         command: ["python", "./tests/utils/initial_data.py"]
         envFrom:
         - configMapRef:
