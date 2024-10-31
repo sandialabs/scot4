@@ -1,0 +1,43 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: scot4-frontend
+spec:
+  type: ClusterIP
+  ports:
+    - port: 5678
+      targetPort: 8080
+  selector:
+    app: scot4-frontend
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: scot4-frontend
+spec:
+  selector:
+    matchLabels:
+      app: scot4-frontend
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: scot4-frontend
+        date: "{{ now | unixEpoch }}"
+    spec:
+      containers:
+      - image: "{{ .Values.scot4.frontend.repository }}:{{ .Values.scot4.frontend.tag }}"
+        imagePullPolicy: {{ .Values.scot4.frontend.imagePullPolicy }}
+        name: scot4-frontend
+        envFrom:
+        - configMapRef:
+            name: scot4-frontend-env-config
+        ports:
+        - containerPort: 8080
+          name: scot4-frontend
+      imagePullSecrets:
+      - name: scot4-image-pull-secret 

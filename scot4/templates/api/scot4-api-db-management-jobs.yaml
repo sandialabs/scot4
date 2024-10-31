@@ -1,0 +1,42 @@
+{{- if and (eq .Values.scot4.wipe_api_database "true") (eq .Values.scot4.api.internalDB "true") }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: scot4-api-db-management
+spec:
+  template:
+    spec:
+      initContainers:
+      - name: scot4-wait-for-db
+        image: "{{ .Values.scot4.api.repository }}:{{ .Values.scot4.api.tag }}"
+        imagePullPolicy: {{ .Values.scot4.api.imagePullPolicy }}
+        command: ['/bin/bash', '-c', 'echo -e "Checking for the availability of MySQL Server deployment"; while ! mysqladmin ping -h scot4-db-service -u root -p$ROOT_DB_PASSWORD; do sleep 1; printf "-"; done; echo -e "  >> MySQL DB Server has started";']
+        env:
+          - name: ROOT_DB_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: scot4-env-secrets
+                key: ROOT_DB_PASSWORD
+      - name: scot4-api-wipe-db
+        imagePullPolicy: {{ .Values.scot4.api.imagePullPolicy }}
+        image: "{{ .Values.scot4.api.repository }}:{{ .Values.scot4.api.tag }}"
+        command: ["python", "./app/db/init_db.py", "--create_tables", "--reset_db", "--create_sql_indices"]
+        envFrom:
+        - configMapRef:
+            name: scot4-api-env-config
+        - secretRef:
+            name: scot4-env-secrets
+      {{- if eq .Values.scot4.api.fakedata "true" }}
+      - name: scot4-api-fake-data
+        imagePullPolicy: {{ .Values.scot4.api.imagePullPolicy }}
+        image: "{{ .Values.scot4.api.repository }}:{{ .Values.scot4.api.tag }}-util"
+        command: ["python", "./tests/utils/initial_data.py"]
+        envFrom:
+        - configMapRef:
+            name: scot4-api-env-config
+        - secretRef:
+            name: scot4-env-secrets
+      {{- end }}
+      imagePullSecrets:
+      - name: scot4-image-pull-secret 
+{{- end }}

@@ -1,0 +1,20 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: scot4-search-init
+spec:
+  template:
+    spec:
+      containers:
+      - name: scot4-search-init
+        imagePullPolicy: "Always"
+        image: "{{ .Values.scot4.api.repository }}:{{ .Values.scot4.api.tag }}-util"
+        command: ["python", "./tests/utils/index_search.py"]
+        envFrom:
+        - configMapRef:
+            name: scot4-api-env-config
+        - secretRef:
+            name: scot4-env-secrets
+      restartPolicy: Never
+      imagePullSecrets:
+      - name: scot4-image-pull-secret 

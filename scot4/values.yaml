@@ -1,0 +1,207 @@
+# Default values for scot4-chart.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+meilisearch:
+  image:
+    repository: getmeili/meilisearch
+    tag: v1.10.0
+  environment:
+    MEILI_NO_ANALYTICS: false
+    MEILI_ENV: production
+  envFrom:
+    - secretRef:
+        name: scot4-env-secrets
+  auth: 
+    existingMasterKeySecret: "scot4-env-secrets"
+  persistence:
+    enabled: true
+    storageClass: "local-path"
+    size: "200Gi"
+    annotations:
+      helm.sh/resource-policy: "keep"
+  nameOverride: "scot4-search"
+  fullnameOverride: "scot4-search"
+
+scot4:
+  common:
+    noProxy: "localhost,scot4-api-service,scot4-search,scot4-flair-service"
+
+  # needs to be "true" for first install. after first install will clean and rebuild flair's DBs
+  clean_flair_install: "false"
+  # will drop tables, indices, and data from API DB and rebuild. works for both internal and remote DB connection
+  wipe_api_database: "false"
+  # only tries to rebuild the tables without dropping data or schema. useful during development
+  rebuild_api_database_tables: "false"
+
+  redirect:
+    enabled: "false"
+    redirectFrom: "scot.example.com"
+    redirectTlsSecretName: "scot4-redirect-tls"
+
+  database:
+    repository: mysql
+    tag: "8.0"
+    containerPort: 3306
+    databaseRootHost: "%"
+    # for apiDatabaseName and apiDatabaseUser:
+    # if changed and using internal db make sure to update SQLALCHEMY_DATABASE_URI in secrets to match
+    apiDatabaseName: "scot4"
+    apiDatabaseUser: "scot4-db-user"
+    storageClassName: "local-path"
+    storageCapacity: "30Gi"
+
+  api:
+    # set internalDB to "true" to spin up local mysql DB in helm deployment
+    internalDB: "false"
+    # set fakedata to "true" to populate SCOT4 with faker data
+    fakedata: "false"
+    # api container image repository path
+    repository: ghcr.io/sandialabs/scot4-api
+    # api container image tag
+    tag: main
+    # first superuser's email when creating account
+    firstSuperUserEmail: "scot-admin@example.com"
+    # first superuser's username
+    firstSuperUserName: "scot-admin"
+    # url to reach flair at, shouldn't need to change
+    flairHost: 'http://scot4-flair-service:3001'
+    # path to reach flair at, shouldn't need to change
+    flairHostEndpoint: '/api/v1/flair'
+    # placeholder path for enrichment logic, refer to api code
+    enrichmentApiJobEndpoint: "/api/v1/dags/scot4_entity_[ENTITY_TYPE_PLACEHOLDER]_enrichment/dagRuns"
+    # enrichment host, likely a deployed airflow instance
+    enrichmentHost: "https://airflow.example.com"
+    # username on enrichment server, password is in scot4-env-secrets
+    enrichmentUsername: "scot4-enrichment-account"
+    # semicolon-delimited list of entity types, e.g. ipaddr;domain;snumber
+    enrichmentTypes: ""
+    # path to reach meilisearch at, shouldn't need to change
+    searchHost: "http://scot4-search:7700"
+    # port to expose to api service
+    containerPort: 8000
+    # image pull policy for k8s
+    imagePullPolicy: "Always"
+    # url where the api will be accessible
+    externalApiUri: "https://scot4.example.com/api/v1"
+    # For a production-like deployment, change this value to "PROD"
+    deploymentEnvironment: "Development"
+    # number of concurrent api pods to run
+    numReplicas: 16
+    # number of pods that can be added when a helm upgrade occurs
+    maxSurge: 8
+    storageClassName: "local-path"
+    storageCapacity: "30Gi"
+
+  frontend:
+    # frontend container image repository path
+    repository: ghcr.io/sandialabs/scot4-web-app
+    # frontend container image tag
+    tag: main
+    # url where the frontend will be accessible
+    externalHostName: "scot4.example.com"
+    # name of k8s secret that holds tls crt and key, should not need to change
+    tlsSecretName: "scot4-tls"
+    # image pull policy for k8s
+    imagePullPolicy: "Always"
+
+  flair:
+    # flair container image repository path
+    repository: ghcr.io/sandialabs/scot4-flair
+    # flair container image tag
+    tag: main
+    containerPort: 3001
+    apiDatabaseName: "scot4"
+    apiDatabaseUser: "scot4-db-user"
+    storageClassName: "local-path"
+    storageCapacity: "5Gi"
+    numMinionWorkers: 4
+    imagePullPolicy: "Always"
+    mojoReverseProxy: "/flair-ui"
+    version: 1.1
+    mode: "production"
+    log_level: "DEBUG"
+    log_dir: "/opt/flair/var/log"
+    log_file: "flair.log"
+    mojo_listen: "http://0.0.0.0:3001?reuse=1"
+    mojo_workers: 5
+    default_exp_time: 28800
+    admin_user: 'flairadmin'
+    admin_gecos: 'Flair Admin Entity'
+    home_dir: "/opt/flair"
+    flair_user: "flair"
+    flair_group: "flair"
+    db_uri: "file:/opt/flair/var/flair.db"
+    db_migration: "/opt/flair/etc/flair.sqlite.sql"
+    db_file: "/opt/flair/var/flair.db"
+    core_regexes: "/opt/flair/etc/core_regexes.pl"
+    udef_regexes: "/opt/flair/etc/udef_regexes.pl"
+    scot_api_insecure_ssl: 0
+    scot_api_uri_root: "http://scot4-api-service:8000/api/v1"
+
+  inbox:
+    common:
+      # inbox processor container image repository path
+      repository: ghcr.io/sandialabs/scot4-inbox
+      # inbox processor container image tag
+      tag: main
+      imagePullPolicy: "Always"
+      imapSslVerify: 1
+      scotApiSslVerify: 1
+      scotApiUriRoot: "http://scot4-api-service:8000/api/v1"
+      msvFilterDefinitions: "/opt/scot/var/scot4_msv_filters"
+      msvDbmFile: "/opt/scot/var/seen_msgids"
+      storageCapacity: "20Gi"
+      testMode: "true"
+      storageClassName: "local-path"
+
+    alertgroup:
+      enabled: "false"
+      logLevel: "DEBUG"
+      logFile: "/opt/scot4-inbox/var/log/alert.log"
+      imapServername: "mail.example.com"
+      imapServerPort: 993
+      imapInbox: "INBOX"
+      imapUsername: "username"
+      imapPeek: 0
+      inputQueue: "alertgroup"
+      clientClass: 'Scot::Inbox::Imap'
+      permittedSenders: '*'
+
+    dispatch:
+      enabled: "false"
+      logLevel: "DEBUG"
+      logFile: "/opt/scot4-inbox/var/log/dispatch.log"
+      imapServername: "mail.example.com"
+      imapServerPort: 993
+      imapInbox: "INBOX"
+      imapUsername: "username"
+      imapPeek: 0
+      inputQueue: "dispatch"
+      clientClass: 'Scot::Inbox::Imap'
+      permittedSenders: '*'
+
+    event:
+      enabled: "false"
+      logLevel: "DEBUG"
+      logFile: "/opt/scot4-inbox/var/log/event.log"
+      imapServername: "mail.example.com"
+      imapServerPort: 993
+      imapInbox: "INBOX"
+      imapUsername: "username"
+      imapPeek: 0
+      inputQueue: "event"
+      clientClass: 'Scot::Inbox::Imap'
+      permittedSenders: '*'
+
+  s3:
+    backup_enabled: "false"
+    storageCapacity: "200Gi"
+    storageClassName: "local-path"
+    image:
+      repository: "amazon/aws-cli"
+      tag: "latest"
+    imagePullPolicy: "Always"
+    endpointURL: "https://scot4.s3.example.com"
+    testMode: "true"
+    s3Address: "s3://scot4"

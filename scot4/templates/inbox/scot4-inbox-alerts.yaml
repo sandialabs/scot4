@@ -1,0 +1,96 @@
+{{- if eq .Values.scot4.inbox.alertgroup.enabled "true" }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: scot4-inbox-alerts-data-pv-claim
+  annotations:
+    volumeType: local
+    helm.sh/resource-policy: "keep"
+spec:
+  storageClassName: "{{ .Values.scot4.inbox.common.storageClassName }}"
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: "{{ .Values.scot4.inbox.common.storageCapacity }}"
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: scot4-inbox-alerts
+spec:
+  schedule: "*/5 * * * *"
+  successfulJobsHistoryLimit: 0
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    metadata:
+      labels:
+        app: scot4-inbox-alerts-cronjob
+    spec:
+      template:
+        spec:
+          containers:
+          - name: scot4-inbox-alerts
+            image: "{{ .Values.scot4.inbox.common.repository }}:{{ .Values.scot4.inbox.common.tag }}"
+            imagePullPolicy: {{ .Values.scot4.inbox.common.imagePullPolicy }}
+            envFrom:
+            - configMapRef:
+                name: scot4-inbox-alerts-env-config
+            - secretRef:
+                name: scot4-inbox-alerts-secrets
+            {{- if eq .Values.scot4.inbox.common.testMode "true" }}
+            command:
+            - /bin/sh
+            - -c
+            - /opt/scot4-inbox/bin/inbox.pl -test
+            {{- else if eq .Values.scot4.inbox.common.testMode "false" }}
+            command:
+            - /bin/sh
+            - -c
+            - /opt/scot4-inbox/bin/inbox.pl
+            {{- end }}
+            volumeMounts:
+            - name: scot4-inbox-alerts-data-storage
+              mountPath: /opt/scot4-inbox/var
+          imagePullSecrets:
+          - name: scot4-image-pull-secret
+          volumes:
+          - name: scot4-inbox-alerts-data-storage
+            persistentVolumeClaim:
+              claimName: scot4-inbox-alerts-data-pv-claim
+          securityContext:
+            runAsUser: 5555
+            runAsGroup: 5555
+            fsGroup: 5555
+          restartPolicy: Never
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: scot4-inbox-alerts-env-config
+data:
+  NO_PROXY: "{{ .Values.scot4.common.noProxy }}"
+  no_proxy: "{{ .Values.scot4.common.noProxy }}"
+  S4INBOX_IMAP_SERVERNAME: "{{ .Values.scot4.inbox.alertgroup.imapServername }}"
+  S4INBOX_IMAP_PORT: "{{ .Values.scot4.inbox.alertgroup.imapServerPort }}"
+  S4INBOX_IMAP_INBOX: "{{ .Values.scot4.inbox.alertgroup.imapInbox }}"
+  S4INBOX_IMAP_USERNAME: "{{ .Values.scot4.inbox.alertgroup.imapUsername }}"
+  S4INBOX_IMAP_SSL_VERIFY: "{{ .Values.scot4.inbox.common.imapSslVerify }}"
+  S4INBOX_IMAP_PEEK: "{{ .Values.scot4.inbox.alertgroup.imapPeek }}"
+  S4INBOX_GRAPH_LOGIN_URL: "{{ .Values.scot4.inbox.alertgroup.graphLoginUrl }}"
+  S4INBOX_GRAPH_GRAPH_URL: "{{ .Values.scot4.inbox.alertgroup.graphUrl }}"
+  S4INBOX_GRAPH_SCOPE: "{{ .Values.scot4.inbox.alertgroup.graphScope }}"
+  S4INBOX_GRAPH_TENET_ID: "{{ .Values.scot4.inbox.alertgroup.graphTenetId }}"
+  S4INBOX_GRAPH_CLIENT_ID: "{{ .Values.scot4.inbox.alertgroup.graphClientId }}"
+  S4INBOX_GRAPH_CLIENT_SECRET: "{{ .Values.scot4.inbox.alertgroup.clientSecret }}"
+  S4INBOX_GRAPH_USERADDRESS: "{{ .Values.scot4.inbox.alertgroup.clientUserAddress }}"
+  S4INBOX_PERMITTED_SENDERS: "{{ .Values.scot4.inbox.alertgroup.permittedSenders }}"
+  S4INBOX_LOG_LEVEL: "{{ .Values.scot4.inbox.alertgroup.logLevel }}"
+  S4INBOX_LOG_FILE: "{{ .Values.scot4.inbox.alertgroup.logFile }}"
+  S4INBOX_SCOT_API_INSECURE_SSL: "{{ .Values.scot4.inbox.common.scotApiSslVerify }}"
+  S4INBOX_SCOT_API_URI_ROOT: "{{ .Values.scot4.inbox.common.scotApiUriRoot }}"
+  S4INBOX_MSV_FILTER_DEFINITION: "{{ .Values.scot4.inbox.common.msvFilterDefinitions }}"
+  S4INBOX_MSV_DBM_FILE: "{{ .Values.scot4.inbox.common.msvDbmFile }}"
+  S4INBOX_SCOT_INPUT_QUEUE: "{{ .Values.scot4.inbox.alertgroup.inputQueue }}"
+  S4INBOX_MAIL_CLIENT_CLASS: "{{ .Values.scot4.inbox.alertgroup.clientClass }}"
+{{- end }}  

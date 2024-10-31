@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: scot4-api-env-config
+data:
+  PYTHONPATH: "/code:/code/tests"
+  FIRST_SUPERUSER: {{ .Values.scot4.api.firstSuperUserEmail }}
+  FIRST_SUPERUSER_USERNAME: {{ .Values.scot4.api.firstSuperUserName }}
+  FLAIR_HOST: {{ .Values.scot4.api.flairHost }}
+  FLAIR_API_FLAIR_ENDPOINT: {{ .Values.scot4.api.flairHostEndpoint }}
+  SEARCH_HOST: {{ .Values.scot4.api.searchHost }}
+  NO_PROXY: {{ .Values.scot4.common.noProxy }}
+  no_proxy: {{ .Values.scot4.common.noProxy }}
+  ENRICHMENT_HOST: {{ .Values.scot4.api.enrichmentHost }} 
+  ENRICHMENT_API_JOB_ENDPOINT: {{ .Values.scot4.api.enrichmentApiJobEndpoint }}
+  ENRICHMENT_USERNAME: {{ .Values.scot4.api.enrichmentUsername }}
+  ENRICHMENT_TYPES: {{ .Values.scot4.api.enrichmentTypes }}
+  API_EXTERNAL_BASE: {{ .Values.scot4.api.externalApiUri }}
+  REQUESTS_CA_BUNDLE: "/etc/ssl/certs/ca-certificates.crt"
+  ENV: {{ .Values.scot4.api.deploymentEnvironment }}

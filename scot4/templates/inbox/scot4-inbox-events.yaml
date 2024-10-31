@@ -1,0 +1,97 @@
+{{- if eq .Values.scot4.inbox.event.enabled "true" }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: scot4-inbox-events-data-pv-claim
+  annotations:
+    volumeType: local
+    helm.sh/resource-policy: "keep"
+spec:
+  storageClassName: "{{ .Values.scot4.inbox.common.storageClassName }}"
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: "{{ .Values.scot4.inbox.common.storageCapacity }}"
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: scot4-inbox-events
+spec:
+  schedule: "*/10 * * * *"
+  successfulJobsHistoryLimit: 0
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    metadata:
+      labels:
+        app: scot4-inbox-events-cronjob
+    spec:
+      template:
+        spec:
+          containers:
+          - name: scot4-inbox-events
+            image: "{{ .Values.scot4.inbox.common.repository }}:{{ .Values.scot4.inbox.common.tag }}"
+            imagePullPolicy: {{ .Values.scot4.inbox.common.imagePullPolicy }}
+            envFrom:
+            - configMapRef:
+                name: scot4-inbox-events-env-config
+            - secretRef:
+                name: scot4-inbox-events-secrets
+	          {{- if eq .Values.scot4.inbox.common.testMode "true" }}
+            command:
+            - /bin/sh
+            - -c
+            - /opt/scot4-inbox/bin/inbox.pl -test
+            {{- else if eq .Values.scot4.inbox.common.testMode "false" }}
+            command:
+            - /bin/sh
+            - -c
+            - /opt/scot4-inbox/bin/inbox.pl
+            {{- end }}
+            volumeMounts:
+            - name: scot4-inbox-events-data-storage
+              mountPath: /opt/scot4-inbox/var
+          imagePullSecrets:
+          - name: scot4-image-pull-secret
+          volumes:
+          - name: scot4-inbox-events-data-storage
+            persistentVolumeClaim:
+              claimName: scot4-inbox-events-data-pv-claim
+          securityContext:
+            runAsUser: 5555
+            runAsGroup: 5555
+            fsGroup: 5555
+          restartPolicy: Never
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: scot4-inbox-events-env-config
+data:
+  NO_PROXY: "{{ .Values.scot4.common.noProxy }}"
+  no_proxy: "{{ .Values.scot4.common.noProxy }}"
+  S4INBOX_IMAP_SERVERNAME: "{{ .Values.scot4.inbox.event.imapServername }}"
+  S4INBOX_IMAP_PORT: "{{ .Values.scot4.inbox.event.imapServerPort }}"
+  S4INBOX_IMAP_INBOX: "{{ .Values.scot4.inbox.event.imapInbox }}"
+  S4INBOX_IMAP_USERNAME: "{{ .Values.scot4.inbox.event.imapUsername }}"
+  S4INBOX_IMAP_SSL_VERIFY: "{{ .Values.scot4.inbox.common.imapSslVerify }}"
+  S4INBOX_IMAP_PEEK: "{{ .Values.scot4.inbox.event.imapPeek }}"
+  S4INBOX_GRAPH_LOGIN_URL: "{{ .Values.scot4.inbox.event.graphLoginUrl }}"
+  S4INBOX_GRAPH_GRAPH_URL: "{{ .Values.scot4.inbox.event.graphUrl }}"
+  S4INBOX_GRAPH_SCOPE: "{{ .Values.scot4.inbox.event.graphScope }}"
+  S4INBOX_GRAPH_TENET_ID: "{{ .Values.scot4.inbox.event.graphTenetId }}"
+  S4INBOX_GRAPH_CLIENT_ID: "{{ .Values.scot4.inbox.event.graphClientId }}"
+  S4INBOX_GRAPH_CLIENT_SECRET: "{{ .Values.scot4.inbox.event.clientSecret }}"
+  S4INBOX_GRAPH_USERADDRESS: "{{ .Values.scot4.inbox.event.clientUserAddress }}"
+  S4INBOX_PERMITTED_SENDERS: "{{ .Values.scot4.inbox.event.permittedSenders }}"
+  S4INBOX_LOG_LEVEL: "{{ .Values.scot4.inbox.event.logLevel }}"
+  S4INBOX_LOG_FILE: "{{ .Values.scot4.inbox.event.logFile }}"
+  S4INBOX_SCOT_API_INSECURE_SSL: "{{ .Values.scot4.inbox.common.scotApiSslVerify }}"
+  S4INBOX_SCOT_API_URI_ROOT: "{{ .Values.scot4.inbox.common.scotApiUriRoot }}"
+  S4INBOX_MSV_FILTER_DEFINITION: "{{ .Values.scot4.inbox.common.msvFilterDefinitions }}"
+  S4INBOX_MSV_DBM_FILE: "{{ .Values.scot4.inbox.common.msvDbmFile }}"
+  S4INBOX_SCOT_INPUT_QUEUE: "{{ .Values.scot4.inbox.event.inputQueue }}"
+  S4INBOX_MAIL_CLIENT_CLASS: "{{ .Values.scot4.inbox.event.clientClass }}"
+ {{- end }}
+  

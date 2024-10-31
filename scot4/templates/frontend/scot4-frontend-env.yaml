@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: scot4-frontend-env-config
+data:
+  NO_PROXY: {{ .Values.scot4.common.noProxy }}
+  VUE_APP_API_BASE: {{ .Values.scot4.api.externalApiUri }}

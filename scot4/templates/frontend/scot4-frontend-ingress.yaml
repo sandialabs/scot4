@@ -1,0 +1,108 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: scot4-tls-ingress
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: scot4-strip-flair-prefix@kubernetescrd, scot4-http-redirect@kubernetescrd
+spec:
+  tls:
+  - hosts:
+      - {{ .Values.scot4.frontend.externalHostName }}
+    secretName: {{ .Values.scot4.frontend.tlsSecretName }}
+  rules:
+  - host: {{ .Values.scot4.frontend.externalHostName }}
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: scot4-frontend
+            port:
+              number: 5678
+      - path: /api
+        pathType: Prefix
+        backend:
+          service:
+            name: scot4-api-service
+            port:
+              number: {{ .Values.scot4.api.containerPort }}
+      - path: /flair-ui
+        pathType: Prefix
+        backend:
+          service:
+            name: scot4-flair-service
+            port:
+              number: {{ .Values.scot4.flair.containerPort }}
+---
+apiVersion: traefik.containo.us/v1alpha1
+kind: Middleware
+metadata:
+  name: strip-flair-prefix
+  namespace: scot4
+spec:
+  stripPrefix:
+    prefixes:
+      - /flair-ui
+---
+apiVersion: traefik.containo.us/v1alpha1
+kind: Middleware
+metadata:
+  name: http-redirect
+  namespace: scot4
+spec:
+  redirectScheme:
+    scheme: https
+    permanent: true
+{{- if eq .Values.scot4.redirect.enabled "true" }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: scot4-strip-flair-prefix@kubernetescrd, scot4-http-redirect@kubernetescrd, scot4-redirect-scot@kubernetescrd
+  name: ingress-scot-redirect
+  namespace: scot4
+spec:
+  tls:
+  - hosts:
+      - {{ .Values.scot4.redirect.redirectFrom }}
+    secretName: {{ .Values.scot4.redirect.redirectTlsSecretName }}
+  rules:
+  - host: {{ .Values.scot4.redirect.redirectFrom }}
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: scot4-frontend
+            port:
+              number: 5678
+      - path: /api
+        pathType: Prefix
+        backend:
+          service:
+            name: scot4-api-service
+            port:
+              number: {{ .Values.scot4.api.containerPort }}
+      - path: /flair-ui
+        pathType: Prefix
+        backend:
+          service:
+            name: scot4-flair-service
+            port:
+              number: {{ .Values.scot4.flair.containerPort }}
+---
+# Redirect with domain replacement
+apiVersion: traefik.containo.us/v1alpha1
+kind: Middleware
+metadata:
+  name: redirect-scot
+  namespace: scot4
+spec:
+  redirectRegex:
+    regex: ^https://{{ .Values.scot4.redirect.redirectFrom }}/(.*)
+    replacement: https://{{ .Values.scot4.frontend.externalHostName }}/${1}
+    permanent: true
+{{- end }}

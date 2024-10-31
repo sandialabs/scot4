@@ -1,0 +1,11 @@
+{{- if eq .Values.scot4.api.internalDB "true" }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: scot4-db-env-config
+data:
+  MYSQL_ROOT_HOST: "{{ .Values.scot4.database.databaseRootHost }}"
+  MYSQL_DATABASE: {{ .Values.scot4.database.apiDatabaseName }}
+  MYSQL_USER: {{ .Values.scot4.database.apiDatabaseUser }}
+  NO_PROXY: {{ .Values.scot4.common.noProxy }}
+{{- end }}

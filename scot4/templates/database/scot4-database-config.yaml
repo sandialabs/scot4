@@ -1,0 +1,20 @@
+{{- if eq .Values.scot4.api.internalDB "true" }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: scot4-db-config-file
+  labels:
+    app: mysql
+    app.kubernetes.io/name: mysql
+data:
+  mysql.cnf: |
+    [mysqld]
+    datadir=/var/lib/mysql
+    socket=/var/lib/mysql/mysql.sock
+    log-error=/var/lib/mysql/mysqld.log
+    pid-file=/run/mysqld/mysqld.pid
+    default_authentication_plugin=mysql_native_password
+    disable_log_bin
+    bind-address = 0.0.0.0
+    explicit_defaults_for_timestamp=1
+ {{- end }}

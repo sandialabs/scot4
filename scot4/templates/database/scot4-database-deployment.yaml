@@ -1,0 +1,61 @@
+{{- if eq .Values.scot4.api.internalDB "true" }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: scot4-db-service
+spec:
+  ports:
+  - port: {{ .Values.scot4.database.containerPort }}
+  selector:
+    app: scot4-db
+  clusterIP: None
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: scot4-db
+spec:
+  selector:
+    matchLabels:
+      app: scot4-db
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: scot4-db
+        date: "{{ now | unixEpoch }}"
+    spec:
+      containers:
+      - image: "{{ .Values.scot4.database.repository }}:{{ .Values.scot4.database.tag }}"
+        name: scot4-db
+        envFrom:
+        - configMapRef:
+            name: scot4-db-env-config
+        env:
+          - name: MYSQL_ROOT_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: scot4-env-secrets
+                key: ROOT_DB_PASSWORD
+          - name: MYSQL_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: scot4-env-secrets
+                key: API_DB_PASSWORD
+        ports:
+        - containerPort: {{ .Values.scot4.database.containerPort }}
+          name: scot4-db
+        volumeMounts:
+        - name: mysql-data-storage
+          mountPath: /var/lib/mysql
+        - name: scot4-db-config-file
+          mountPath: /etc/mysql/conf.d
+      volumes:
+      - name: mysql-data-storage
+        persistentVolumeClaim:
+          claimName: mysql-data-pv-claim
+      - name: scot4-db-config-file
+        configMap:
+          name: scot4-db-config-file
+ {{- end }}

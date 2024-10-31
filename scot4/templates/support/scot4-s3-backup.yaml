@@ -1,0 +1,64 @@
+{{- if eq .Values.scot4.s3.backup_enabled "true" }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: scot4-s3-backup-data-pv-claim
+  annotations:
+    volumeType: local
+    helm.sh/resource-policy: "keep"
+spec:
+  storageClassName: "{{ .Values.scot4.s3.storageClassName }}"
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: "{{ .Values.scot4.s3.storageCapacity }}"
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: scot4-s3-backup
+spec:
+  {{- if eq .Values.scot4.s3.testMode "true" }}
+  schedule: "*/5 * * * *" 
+  {{- else if eq .Values.scot4.s3.testMode "false" }}
+  schedule: "0 0 * * *"
+  {{- end }}
+  successfulJobsHistoryLimit: 0
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    metadata:
+      labels:
+        app: scot4-s3-backup-cronjob
+    spec:
+      template:
+        spec:
+          containers:
+          - name: scot4-s3-backup
+            image: "{{ .Values.scot4.s3.image.repository }}:{{ .Values.scot4.s3.image.tag }}"
+            imagePullPolicy: {{ .Values.scot4.s3.imagePullPolicy }}
+            envFrom:
+            - secretRef:
+                name: scot4-inbox-s3-backup-secrets
+            {{- if eq .Values.scot4.s3.testMode "true" }}
+            command:
+            - /bin/sh
+            - c
+            - aws s3 ls --endpoint-url={{ .Values.scot4.s3.endpointURL }}
+            {{- else if eq .Values.scot4.s3.testMode "false" }}
+            command:
+            - /bin/sh
+            - -c
+            - aws s3 sync {{ .Values.scot4.s3.s3Address }} /mnt/backup --endpoint-url={{ .Values.scot4.s3.endpointURL }}
+            {{- end }}
+            volumeMounts:
+            - name: scot4-inbox-s3-backup-data-storage
+              mountPath: /mnt/backup
+          imagePullSecrets:
+          - name: scot4-image-pull-secret
+          volumes:
+          - name: scot4-inbox-s3-backup-data-storage
+            persistentVolumeClaim:
+              claimName: scot4-s3-backup-data-pv-claim
+          restartPolicy: Never
+{{- end }}  

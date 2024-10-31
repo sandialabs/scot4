@@ -1,0 +1,16 @@
+{{- if eq .Values.scot4.api.internalDB "true" }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mysql-data-pv-claim
+  annotations:
+    volumeType: local
+    helm.sh/resource-policy: "keep"
+spec:
+  storageClassName: {{ .Values.scot4.database.storageClassName }}
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.scot4.database.storageCapacity }}
+ {{- end }}

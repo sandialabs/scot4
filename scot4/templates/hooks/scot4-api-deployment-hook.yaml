@@ -1,0 +1,61 @@
+{{- if and (ne .Values.scot4.api.internalDB "true") (eq .Values.scot4.wipe_api_database "true") }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: scot4-api-hook-env-config
+  annotations:
+    "helm.sh/hook": pre-install
+    "helm.sh/hook-weight": "-5"
+data:
+  PYTHONPATH: "/code:/code/tests"
+  FIRST_SUPERUSER: {{ .Values.scot4.api.firstSuperUserEmail }}
+  FIRST_SUPERUSER_USERNAME: {{ .Values.scot4.api.firstSuperUserName }}
+  FLAIR_HOST: {{ .Values.scot4.api.flairHost }}
+  FLAIR_API_FLAIR_ENDPOINT: {{ .Values.scot4.api.flairHostEndpoint }}
+  SEARCH_HOST: {{ .Values.scot4.api.searchHost }}
+  NO_PROXY: {{ .Values.scot4.common.noProxy }}
+  no_proxy: {{ .Values.scot4.common.noProxy }}
+  ENRICHMENT_HOST: {{ .Values.scot4.api.enrichmentHost }}
+  ENRICHMENT_API_JOB_ENDPOINT: {{ .Values.scot4.api.enrichmentApiJobEndpoint }}
+  ENRICHMENT_USERNAME: {{ .Values.scot4.api.enrichmentUsername }}
+  ENRICHMENT_TYPES: {{ .Values.scot4.api.enrichmentTypes }}
+  API_EXTERNAL_BASE: {{ .Values.scot4.api.externalApiUri }}
+  REQUESTS_CA_BUNDLE: "/etc/ssl/certs/ca-certificates.crt"
+  ENV: {{ .Values.scot4.api.deploymentEnvironment }}
+---  
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: scot4-api-create-and-wipe-db-tables
+  annotations:
+    "helm.sh/hook": pre-install
+    "helm.sh/hook-weight": "0"
+spec:
+  template:
+    spec:
+      initContainers:
+      - name: scot4-api-create-and-wipe-db-tables
+        imagePullPolicy: {{ .Values.scot4.api.imagePullPolicy }}
+        image: "{{ .Values.scot4.api.repository }}:{{ .Values.scot4.api.tag }}"
+        command: ["python", "./app/db/init_db.py", "--create_tables", "--reset_db", "--create_sql_indices"]
+        envFrom:
+        - configMapRef:
+            name: scot4-api-hook-env-config
+        - secretRef:
+            name: scot4-env-secrets
+      {{- if eq .Values.scot4.api.fakedata "true" }}
+      containers:
+      - name: scot4-api-fill-db-with-fake-data
+        imagePullPolicy: {{ .Values.scot4.api.imagePullPolicy }}
+        image: "{{ .Values.scot4.api.repository }}:{{ .Values.scot4.api.tag }}-util"
+        command: ["python", "./tests/utils/initial_data.py"]
+        envFrom:
+        - configMapRef:
+            name: scot4-api-hook-env-config
+        - secretRef:
+            name: scot4-env-secrets
+      {{- end }}
+      restartPolicy: Never
+      imagePullSecrets:
+      - name: scot4-image-pull-secret
+{{- end }}
