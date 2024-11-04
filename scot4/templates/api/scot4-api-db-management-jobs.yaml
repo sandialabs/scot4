@@ -6,6 +6,7 @@ metadata:
 spec:
   template:
     spec:
+      restartPolicy: "Never"
       initContainers:
       - name: scot4-wait-for-db
         image: "{{ .Values.scot4.api.repository }}:{{ .Values.scot4.api.tag }}"
@@ -17,6 +18,7 @@ spec:
               secretKeyRef:
                 name: scot4-env-secrets
                 key: ROOT_DB_PASSWORD
+      containers:
       - name: scot4-api-wipe-db
         imagePullPolicy: {{ .Values.scot4.api.imagePullPolicy }}
         image: "{{ .Values.scot4.api.repository }}:{{ .Values.scot4.api.tag }}"

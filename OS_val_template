@@ -19,7 +19,7 @@ scot4:
   api:
     internalDB: "true"
     fakedata: "false"
-    repository: "REPOSITORY/REPOPATH/scot-api"
+    # repository: "REPOSITORY/REPOPATH/scot-api"
     externalApiUri: "https://SERVERNAME/api/v1"
     enrichmentHost: "https://AIRFLOW"
     # deploymentEnvironment: "PROD"
@@ -27,16 +27,16 @@ scot4:
     maxSurge: SURGE
 
   frontend:
-    repository: "REPOSITORY/REPOPATH/scot4-web-app"
+    # repository: "REPOSITORY/REPOPATH/scot4-web-app"
     externalHostName: "SERVERNAME"
 
-  flair:
-    repository: "REPOSITORY/REPOPATH/flair"
+  # flair:
+    # repository: "REPOSITORY/REPOPATH/flair"
 
   inbox:
     common:
       testMode: "false"
-      repository: "REPOSITORY/REPOPATH/scot4-inbox"
+      # repository: "REPOSITORY/REPOPATH/scot4-inbox"
     alertgroup:
       enabled: "false"
     dispatch:

@@ -147,6 +147,11 @@ if [ "$SERVERNAME" = "" ]; then
     fi
 fi
 
+if [ "$SERVERNAME" = "localhost.localdomain" ]; then
+    echo "--- removing localdomain from hostname $SERVERNAME"
+    SERVERNAME="localhost"
+fi
+
 # Ask user for location of TLS .crt and .key files
 if [ "$TLS_KEY_FILE" = "" ]; then
     echo "==="
@@ -363,23 +368,24 @@ BASHRC=/home/scot4/.bashrc
 mkdir -p ~scot4/.kube
 cp /etc/rancher/k3s/k3s.yaml ~scot4/.kube/config
 chown -R scot4:scot4 ~scot4/.kube
+KUBECTL=/usr/local/bin/kubectl
 
 echo "Examining $BASHRC for alias and tab completions"
 if ! grep -q "KUBECONFIG" $BASHRC; then
     echo "export KUBECONFIG=~scot4/.kube/config" >> $BASHRC
     export KUBECONFIG="~scot4/.kube/config"
 fi
-if ! grep -q "alias k=kubect" $BASHRC; then
-	echo "alias k=kubectl" >> $BASHRC 
+if ! grep -q "alias k=$KUBECTL" $BASHRC; then
+	echo "alias k=$KUBECTL" >> $BASHRC 
 fi
-if ! grep -q "source <(kubectl" $BASHRC; then
-	echo "source <(kubectl completion bash)" >> $BASHRC
+if ! grep -q "source <($KUBECTL" $BASHRC; then
+	echo "source <($KUBECTL completion bash)" >> $BASHRC
 fi
 if ! grep -q "complete -o default -F __start_kubectl k" $BASHRC; then 
 	echo "complete -o default -F __start_kubectl k" >> $BASHRC
 fi
-if ! grep -q "kubectl config set-context" $BASHRC; then
-	echo "kubectl config set-context --current --namespace=scot4" >> $BASHRC
+if ! grep -q "$KUBECTL config set-context" $BASHRC; then
+	echo "$KUBECTL config set-context --current --namespace=scot4" >> $BASHRC
 fi
 chown -R scot4:scot4 /home/scot4/.bashrc
 

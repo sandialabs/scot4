@@ -97,7 +97,7 @@ scot4:
     # frontend container image repository path
     repository: ghcr.io/sandialabs/scot4-web-app
     # frontend container image tag
-    tag: "4.2.1"
+    tag: "4.2.2"
     # url where the frontend will be accessible
     externalHostName: "scot4.example.com"
     # name of k8s secret that holds tls crt and key, should not need to change

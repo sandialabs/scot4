@@ -20,6 +20,8 @@ VARIANT="prod"
 REPOPATH="scot/scot4"
 REPLICAS=2
 SURGE=1
+KUBECTL=/usr/local/bin/kubectl
+HELM=/usr/local/bin/helm
 
 while getopts "a:b:c:d:e:k:n:m:p:r:s:t:v:" options; do
     case "${options}" in
@@ -100,21 +102,21 @@ if [ "$PYYAMLMAJ" == "" ] || [ "$PYYAMLMAJ" -lt 5 ]; then
 fi
 
 # Create scot4 namespace as the scot4 user
-if ! kubectl get ns scot4; then
+if ! $KUBECTL get ns scot4; then
     echo "Creating scot4 namespace in kubernetes"
-    kubectl create ns scot4
+    $KUBECTL create ns scot4
 fi
 
-if ! kubectl -n scot4 get secret scot4-tls 2>&1 >/dev/null; then
+if ! $KUBECTL -n scot4 get secret scot4-tls 2>&1 >/dev/null; then
     # then add using kubectl
     echo "Creating scot4-tls"
-    kubectl create secret tls scot4-tls \
+    $KUBECTL create secret tls scot4-tls \
         --key="$TLS_KEY_FILE" \
         --cert="$TLS_CRT_FILE" \
         --namespace scot4
 fi
 
-if ! kubectl -n scot4 get secret scot4-env-secrets 2>&1 >/dev/null; then
+if ! $KUBECTL -n scot4 get secret scot4-env-secrets 2>&1 >/dev/null; then
     # run autogen secrets
     echo "Generating Secrets"
     AGSOPTS=""
@@ -125,8 +127,8 @@ if ! kubectl -n scot4 get secret scot4-env-secrets 2>&1 >/dev/null; then
 
     # Load them
     echo "Applying Secrets"
-    kubectl -n scot4 apply -f scot4/auto_gen_secrets.yaml
-    kubectl -n scot4 apply -f scot4/auto_gen_flair_secrets.yaml
+    $KUBECTL -n scot4 apply -f scot4/auto_gen_secrets.yaml
+    $KUBECTL -n scot4 apply -f scot4/auto_gen_flair_secrets.yaml
 fi
 
 # add pull secret if needed
@@ -135,7 +137,7 @@ if [ "$REG_SECRET" != "x" ] \
    && [ "$REG_SECRET_NAME" != "x" ] \
    && [ "$REPOSERVER" != "x" ]; then
     echo "merging pull secret for $REPOSERVER..."
-    kubectl create secret docker-registry \
+    $KUBECTL create secret docker-registry \
         scot4-image-pull-secret \
         --docker-server=$REPOSERVER \
         --docker-username=$REG_SECRET_NAME \
@@ -163,6 +165,11 @@ if [ "$SQLALCHEMY_DATABASE_URI" != "x" ];then
     sed -ie '/internalDB/ s/true/false/' $YFILE
 fi
 
+if [ "$REPOSERVER" != "x" ]; then
+    sed -ie "s|# repository:|repository:|" $YFILE
+    sed -ie "s|# flair:|flair:|" $YFILE
+fi
+
 # run helm command
 
 echo "!!!"
@@ -173,14 +180,14 @@ echo "!!!          "
 echo "!!!  This is what you want if you are installing for the first time."
 echo "!!!  However, you do not want to do this to redeploy."
 echo "!!!"
-echo "!!!          <Ctrl-C> or entor 'no' at the prompt to abort"
+echo "!!!          <Ctrl-C> or enter 'no' at the prompt to abort"
 echo "!!!          Enter 'yes' to proceed."
 echo "!!!"
 
 read -p "Enter yes to proceed with initial Helm deploy > " YESNO
 
 if [ "$YESNO" = "yes" ];then
-    helm upgrade -n scot4 \
+    $HELM upgrade -n scot4 \
         --install \
         --reset-values \
         -f OS_values.yaml \
