@@ -1,5 +1,7 @@
 #!/bin/bash
 
+/usr/local/bin/helm dependency update ./scot4
+
 /usr/local/bin/helm upgrade \
     -n scot4 \
     --install \
