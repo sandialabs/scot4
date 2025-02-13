@@ -22,7 +22,7 @@ data:
   API_EXTERNAL_BASE: {{ .Values.scot4.api.externalApiUri }}
   REQUESTS_CA_BUNDLE: "/etc/ssl/certs/ca-certificates.crt"
   ENV: {{ .Values.scot4.api.deploymentEnvironment }}
----  
+---
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -56,6 +56,8 @@ spec:
             name: scot4-env-secrets
       {{- end }}
       restartPolicy: Never
+      {{- if .Values.scot4.common.imagePullSecret }}
       imagePullSecrets:
-      - name: scot4-image-pull-secret
+      - name: {{ .Values.scot4.common.imagePullSecret }}
+      {{- end }}
 {{- end }}

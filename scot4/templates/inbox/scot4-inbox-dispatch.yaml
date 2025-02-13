@@ -52,8 +52,10 @@ spec:
             volumeMounts:
             - name: scot4-inbox-dispatch-data-storage
               mountPath: /opt/scot4-inbox/var
+          {{- if .Values.scot4.common.imagePullSecret }}
           imagePullSecrets:
-          - name: scot4-image-pull-secret
+          - name: {{ .Values.scot4.common.imagePullSecret }}
+          {{- end }}
           volumes:
           - name: scot4-inbox-dispatch-data-storage
             persistentVolumeClaim:
