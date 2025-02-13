@@ -108,6 +108,12 @@ scot4:
     tlsSecretName: "scot4-tls"
     # image pull policy for k8s
     imagePullPolicy: "Always"
+    # enable traefik middleware
+    enableTraefikMiddleware: "true"
+    # traefik middleware api version
+    # requires above (`enableTraefikMiddleware`) to be enabled
+    # traefik.containo.us/v1alpha1 or traefik.io/v1alpha1
+    traefikMiddlewareVersion: traefik.containo.us/v1alpha1
 
   flair:
     # flair container image repository path
