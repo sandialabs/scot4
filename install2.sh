@@ -31,7 +31,7 @@ while getopts "a:b:c:d:e:k:n:m:p:r:s:t:v:" options; do
         b)
             REPLICAS=${OPTARG}
             ;;
-        c) 
+        c)
             TLS_CRT_FILE=${OPTARG}
             ;;
         d)
@@ -175,7 +175,7 @@ fi
 echo "!!!"
 echo "!!! WARNING: The next step WILL cause data loss.  "
 echo "!!!          Your SCOT4 database will be wiped"
-echo "!!!          and re-initialized. " 
+echo "!!!          and re-initialized. "
 echo "!!!          "
 echo "!!!  This is what you want if you are installing for the first time."
 echo "!!!  However, you do not want to do this to redeploy."
@@ -187,6 +187,7 @@ echo "!!!"
 read -p "Enter yes to proceed with initial Helm deploy > " YESNO
 
 if [ "$YESNO" = "yes" ];then
+    $HELM helm dependency update ./scot4
     $HELM upgrade -n scot4 \
         --install \
         --reset-values \
@@ -200,6 +201,7 @@ else
     echo "    (this will cause data loss in the scot4 database if it already exists)"
     cat <<"EOF"
 
+helm dependency update ./scot4
 helm upgrade -n scot4 --install --reset-values -f OS_values.yaml --set-string scot4.clean_flair_install="true" --set-string scot4.wipe_api_database="true" scot4 ./scot4
 
 EOF
