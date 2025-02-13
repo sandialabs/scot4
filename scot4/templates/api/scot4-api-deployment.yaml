@@ -41,7 +41,9 @@ spec:
     metadata:
       labels:
         app: scot4-api
+        {{- if eq .Values.scot4.force_pod_redeploy "true" }}
         date: "{{ now | unixEpoch }}"
+        {{- end }}
     spec:
       initContainers:
       {{- if eq .Values.scot4.api.internalDB "true" }}

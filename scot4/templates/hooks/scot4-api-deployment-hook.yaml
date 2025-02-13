@@ -47,7 +47,7 @@ spec:
       containers:
       - name: scot4-api-fill-db-with-fake-data
         imagePullPolicy: {{ .Values.scot4.api.imagePullPolicy }}
-        image: "{{ .Values.scot4.api.repository }}:{{ .Values.scot4.api.tag }}-util"
+        image: "{{ .Values.scot4.api.utilRepository }}:{{ .Values.scot4.api.utilTag }}"
         command: ["python", "./tests/utils/initial_data.py"]
         envFrom:
         - configMapRef:

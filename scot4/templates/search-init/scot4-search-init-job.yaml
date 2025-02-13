@@ -8,7 +8,7 @@ spec:
       containers:
       - name: scot4-search-init
         imagePullPolicy: "Always"
-        image: "{{ .Values.scot4.api.repository }}-util:{{ .Values.scot4.api.tag }}"
+        image: "{{ .Values.scot4.api.utilRepository }}:{{ .Values.scot4.api.utilTag }}"
         command: ["python", "./tests/utils/index_search.py"]
         envFrom:
         - configMapRef:

@@ -22,7 +22,9 @@ spec:
     metadata:
       labels:
         app: scot4-flair
+        {{- if eq .Values.scot4.force_pod_redeploy "true" }}
         date: "{{ now | unixEpoch }}"
+        {{- end }}
     spec:
       {{- if eq .Values.scot4.clean_flair_install "true" }}
       initContainers:
@@ -107,3 +109,4 @@ data:
   S4FLAIR_SCOT_API_INSECURE_SSL: "{{ .Values.scot4.flair.scot_api_insecure_ssl }}"
   S4FLAIR_SCOT_API_URI_ROOT: "{{ .Values.scot4.flair.scot_api_uri_root }}"
   MOJO_REVERSE_PROXY: "{{ .Values.scot4.flair.mojoReverseProxy }}"
+  S4FLAIR_SCOT_EXTERNAL_HOSTNAME: "{{ .Values.scot4.frontend.externalHostName }}"

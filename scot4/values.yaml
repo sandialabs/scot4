@@ -33,6 +33,9 @@ scot4:
   wipe_api_database: "false"
   # only tries to rebuild the tables without dropping data or schema. useful during development
   rebuild_api_database_tables: "false"
+  # mechanism to override k8s's attempt to not redeploy templates that haven't changed
+  # useful when using images tagged "latest" as k8s does not check for new "latest" on deploy
+  force_pod_redeploy: "false"
 
   redirect:
     enabled: "false"
@@ -59,7 +62,11 @@ scot4:
     # api container image repository path
     repository: ghcr.io/sandialabs/scot4-api
     # api container image tag
-    tag: "4.2.1"
+    tag: "4.3.0"
+    # api util container image repository path
+    utilRepository: ghcr.io/sandialabs/scot4-api-util
+    # api util container image tag
+    utilTag: "4.3.0"
     # first superuser's email when creating account
     firstSuperUserEmail: "scot-admin@example.com"
     # first superuser's username
@@ -97,7 +104,7 @@ scot4:
     # frontend container image repository path
     repository: ghcr.io/sandialabs/scot4-web-app
     # frontend container image tag
-    tag: "4.2.2"
+    tag: "4.3.0"
     # url where the frontend will be accessible
     externalHostName: "scot4.example.com"
     # name of k8s secret that holds tls crt and key, should not need to change
@@ -109,7 +116,7 @@ scot4:
     # flair container image repository path
     repository: ghcr.io/sandialabs/scot4-flair
     # flair container image tag
-    tag: "4.2.0"
+    tag: "4.3.5"
     containerPort: 3001
     apiDatabaseName: "scot4"
     apiDatabaseUser: "scot4-db-user"
@@ -144,7 +151,7 @@ scot4:
       # inbox processor container image repository path
       repository: ghcr.io/sandialabs/scot4-inbox
       # inbox processor container image tag
-      tag: "4.2.0"
+      tag: "4.3.1"
       imagePullPolicy: "Always"
       imapSslVerify: 1
       scotApiSslVerify: 1

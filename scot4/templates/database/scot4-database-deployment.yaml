@@ -24,7 +24,9 @@ spec:
     metadata:
       labels:
         app: scot4-db
+        {{- if eq .Values.scot4.force_pod_redeploy "true" }}
         date: "{{ now | unixEpoch }}"
+        {{- end }}
     spec:
       containers:
       - image: "{{ .Values.scot4.database.repository }}:{{ .Values.scot4.database.tag }}"
