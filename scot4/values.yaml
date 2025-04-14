@@ -120,7 +120,7 @@ scot4:
     # traefik middleware api version
     # requires above (`enableTraefikMiddleware`) to be enabled
     # traefik.containo.us/v1alpha1 or traefik.io/v1alpha1
-    traefikMiddlewareVersion: traefik.containo.us/v1alpha1
+    traefikMiddlewareVersion: traefik.io/v1alpha1
 
   flair:
     # flair container image repository path
