@@ -3,7 +3,9 @@ kind: Ingress
 metadata:
   name: scot4-tls-ingress
   annotations:
+    {{- if eq .Values.scot4.frontend.enableTraefikMiddleware "true" }}
     traefik.ingress.kubernetes.io/router.middlewares: scot4-strip-flair-prefix@kubernetescrd, scot4-http-redirect@kubernetescrd
+    {{- end }}
 spec:
   tls:
   - hosts:
@@ -35,7 +37,8 @@ spec:
             port:
               number: {{ .Values.scot4.flair.containerPort }}
 ---
-apiVersion: traefik.containo.us/v1alpha1
+{{- if eq .Values.scot4.frontend.enableTraefikMiddleware "true" }}
+apiVersion: {{ .Values.scot4.frontend.traefikMiddlewareVersion }}
 kind: Middleware
 metadata:
   name: strip-flair-prefix
@@ -45,7 +48,7 @@ spec:
     prefixes:
       - /flair-ui
 ---
-apiVersion: traefik.containo.us/v1alpha1
+apiVersion: {{ .Values.scot4.frontend.traefikMiddlewareVersion }}
 kind: Middleware
 metadata:
   name: http-redirect
@@ -54,6 +57,7 @@ spec:
   redirectScheme:
     scheme: https
     permanent: true
+{{- end }}
 {{- if eq .Values.scot4.redirect.enabled "true" }}
 ---
 apiVersion: networking.k8s.io/v1

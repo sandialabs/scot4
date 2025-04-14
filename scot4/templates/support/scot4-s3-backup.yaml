@@ -20,7 +20,7 @@ metadata:
   name: scot4-s3-backup
 spec:
   {{- if eq .Values.scot4.s3.testMode "true" }}
-  schedule: "*/5 * * * *" 
+  schedule: "*/5 * * * *"
   {{- else if eq .Values.scot4.s3.testMode "false" }}
   schedule: "0 0 * * *"
   {{- end }}
@@ -54,11 +54,13 @@ spec:
             volumeMounts:
             - name: scot4-inbox-s3-backup-data-storage
               mountPath: /mnt/backup
+          {{- if .Values.scot4.common.imagePullSecret }}
           imagePullSecrets:
-          - name: scot4-image-pull-secret
+          - name: {{ .Values.scot4.common.imagePullSecret }}
+          {{- end }}
           volumes:
           - name: scot4-inbox-s3-backup-data-storage
             persistentVolumeClaim:
               claimName: scot4-s3-backup-data-pv-claim
           restartPolicy: Never
-{{- end }}  
+{{- end }}

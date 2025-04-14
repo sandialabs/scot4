@@ -80,7 +80,7 @@ spec:
             name: scot4-env-secrets
         command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "{{ .Values.scot4.api.containerPort }}"]
         volumeMounts:
-        - name: scot4-api-files-storage 
+        - name: scot4-api-files-storage
           mountPath: /var/scot_files
           readOnly: false
         ports:
@@ -104,12 +104,14 @@ spec:
           limits:
             memory: "8192Mi"
       volumes:
-      - name: scot4-api-files-storage 
+      - name: scot4-api-files-storage
         persistentVolumeClaim:
           claimName: scot4-api-pv-claim
       securityContext:
         runAsUser: 3000
         runAsGroup: 3000
         fsGroup: 3000
+      {{- if .Values.scot4.common.imagePullSecret }}
       imagePullSecrets:
-      - name: scot4-image-pull-secret 
+      - name: {{ .Values.scot4.common.imagePullSecret }}
+      {{- end }}

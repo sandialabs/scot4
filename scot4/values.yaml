@@ -12,7 +12,7 @@ meilisearch:
   envFrom:
     - secretRef:
         name: scot4-env-secrets
-  auth: 
+  auth:
     existingMasterKeySecret: "scot4-env-secrets"
   persistence:
     enabled: true
@@ -26,6 +26,10 @@ meilisearch:
 scot4:
   common:
     noProxy: "localhost,scot4-api-service,scot4-search,scot4-flair-service"
+
+    # If authentication is needed for the repo's, configure it here
+    # To disable, set this to be an empty string
+    imagePullSecret: scot4-image-pull-secret
 
   # needs to be "true" for first install. after first install will clean and rebuild flair's DBs
   clean_flair_install: "false"
@@ -72,9 +76,9 @@ scot4:
     # first superuser's username
     firstSuperUserName: "scot-admin"
     # url to reach flair at, shouldn't need to change
-    flairHost: 'http://scot4-flair-service:3001'
+    flairHost: "http://scot4-flair-service:3001"
     # path to reach flair at, shouldn't need to change
-    flairHostEndpoint: '/api/v1/flair'
+    flairHostEndpoint: "/api/v1/flair"
     # placeholder path for enrichment logic, refer to api code
     enrichmentApiJobEndpoint: "/api/v1/dags/scot4_entity_[ENTITY_TYPE_PLACEHOLDER]_enrichment/dagRuns"
     # enrichment host, likely a deployed airflow instance
@@ -111,6 +115,12 @@ scot4:
     tlsSecretName: "scot4-tls"
     # image pull policy for k8s
     imagePullPolicy: "Always"
+    # enable traefik middleware
+    enableTraefikMiddleware: "true"
+    # traefik middleware api version
+    # requires above (`enableTraefikMiddleware`) to be enabled
+    # traefik.containo.us/v1alpha1 or traefik.io/v1alpha1
+    traefikMiddlewareVersion: traefik.containo.us/v1alpha1
 
   flair:
     # flair container image repository path
@@ -133,8 +143,8 @@ scot4:
     mojo_listen: "http://0.0.0.0:3001?reuse=1"
     mojo_workers: 5
     default_exp_time: 28800
-    admin_user: 'flairadmin'
-    admin_gecos: 'Flair Admin Entity'
+    admin_user: "flairadmin"
+    admin_gecos: "Flair Admin Entity"
     home_dir: "/opt/flair"
     flair_user: "flair"
     flair_group: "flair"
@@ -172,8 +182,8 @@ scot4:
       imapUsername: "username"
       imapPeek: 0
       inputQueue: "alertgroup"
-      clientClass: 'Scot::Inbox::Imap'
-      permittedSenders: '*'
+      clientClass: "Scot::Inbox::Imap"
+      permittedSenders: "*"
 
     dispatch:
       enabled: "false"
@@ -185,8 +195,8 @@ scot4:
       imapUsername: "username"
       imapPeek: 0
       inputQueue: "dispatch"
-      clientClass: 'Scot::Inbox::Imap'
-      permittedSenders: '*'
+      clientClass: "Scot::Inbox::Imap"
+      permittedSenders: "*"
 
     event:
       enabled: "false"
@@ -198,8 +208,8 @@ scot4:
       imapUsername: "username"
       imapPeek: 0
       inputQueue: "event"
-      clientClass: 'Scot::Inbox::Imap'
-      permittedSenders: '*'
+      clientClass: "Scot::Inbox::Imap"
+      permittedSenders: "*"
 
   s3:
     backup_enabled: "false"
