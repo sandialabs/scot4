@@ -161,7 +161,7 @@ scot4:
       # inbox processor container image repository path
       repository: ghcr.io/sandialabs/scot4-inbox
       # inbox processor container image tag
-      tag: "4.3.1"
+      tag: "4.3.2"
       imagePullPolicy: "Always"
       imapSslVerify: 1
       scotApiSslVerify: 1
