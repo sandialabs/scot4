@@ -16,7 +16,5 @@ spec:
         - secretRef:
             name: scot4-env-secrets
       restartPolicy: Never
-      {{- if .Values.scot4.common.imagePullSecret }}
       imagePullSecrets:
-      - name: {{ .Values.scot4.common.imagePullSecret }}
-      {{- end }}
+      - name: scot4-image-pull-secret 

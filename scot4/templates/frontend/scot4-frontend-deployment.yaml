@@ -41,7 +41,5 @@ spec:
         ports:
         - containerPort: 8080
           name: scot4-frontend
-      {{- if .Values.scot4.common.imagePullSecret }}
       imagePullSecrets:
-      - name: {{ .Values.scot4.common.imagePullSecret }}
-      {{- end }}
+      - name: scot4-image-pull-secret 

@@ -78,24 +78,20 @@ spec:
             name: scot4-api-env-config
         - secretRef:
             name: scot4-env-secrets
-        command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "{{ .Values.scot4.api.containerPort }}"]
+        command: ["fastapi", "run", "app/main.py", "--host", "0.0.0.0", "--port", "{{ .Values.scot4.api.containerPort }}", "--proxy-headers"]
         volumeMounts:
-        - name: scot4-api-files-storage
+        - name: scot4-api-files-storage 
           mountPath: /var/scot_files
           readOnly: false
         ports:
         - containerPort: {{ .Values.scot4.api.containerPort }}
           name: scot4-api
-        readinessProbe:
-          httpGet:
-            path: /api/v1/health/
-            port: {{ .Values.scot4.api.containerPort }}
-          periodSeconds: 10
         livenessProbe:
           httpGet:
             path: /api/v1/health/
             port: {{ .Values.scot4.api.containerPort }}
           initialDelaySeconds: 30
+          timeoutSeconds: 3
           periodSeconds: 10
           failureThreshold: 10
         resources:
@@ -104,14 +100,12 @@ spec:
           limits:
             memory: "8192Mi"
       volumes:
-      - name: scot4-api-files-storage
+      - name: scot4-api-files-storage 
         persistentVolumeClaim:
           claimName: scot4-api-pv-claim
       securityContext:
         runAsUser: 3000
         runAsGroup: 3000
         fsGroup: 3000
-      {{- if .Values.scot4.common.imagePullSecret }}
       imagePullSecrets:
-      - name: {{ .Values.scot4.common.imagePullSecret }}
-      {{- end }}
+      - name: scot4-image-pull-secret 

@@ -5,14 +5,14 @@
 meilisearch:
   image:
     repository: getmeili/meilisearch
-    tag: v1.10.0
+    tag: v1.10.3
   environment:
     MEILI_NO_ANALYTICS: false
     MEILI_ENV: production
   envFrom:
     - secretRef:
         name: scot4-env-secrets
-  auth:
+  auth: 
     existingMasterKeySecret: "scot4-env-secrets"
   persistence:
     enabled: true
@@ -26,10 +26,6 @@ meilisearch:
 scot4:
   common:
     noProxy: "localhost,scot4-api-service,scot4-search,scot4-flair-service"
-
-    # If authentication is needed for the repo's, configure it here
-    # To disable, set this to be an empty string
-    imagePullSecret: scot4-image-pull-secret
 
   # needs to be "true" for first install. after first install will clean and rebuild flair's DBs
   clean_flair_install: "false"
@@ -66,19 +62,19 @@ scot4:
     # api container image repository path
     repository: ghcr.io/sandialabs/scot4-api
     # api container image tag
-    tag: "4.3.0"
+    tag: "4.4.2"
     # api util container image repository path
     utilRepository: ghcr.io/sandialabs/scot4-api-util
     # api util container image tag
-    utilTag: "4.3.0"
+    utilTag: "4.4.2"
     # first superuser's email when creating account
     firstSuperUserEmail: "scot-admin@example.com"
     # first superuser's username
     firstSuperUserName: "scot-admin"
     # url to reach flair at, shouldn't need to change
-    flairHost: "http://scot4-flair-service:3001"
+    flairHost: 'http://scot4-flair-service:3001'
     # path to reach flair at, shouldn't need to change
-    flairHostEndpoint: "/api/v1/flair"
+    flairHostEndpoint: '/api/v1/flair'
     # placeholder path for enrichment logic, refer to api code
     enrichmentApiJobEndpoint: "/api/v1/dags/scot4_entity_[ENTITY_TYPE_PLACEHOLDER]_enrichment/dagRuns"
     # enrichment host, likely a deployed airflow instance
@@ -108,25 +104,19 @@ scot4:
     # frontend container image repository path
     repository: ghcr.io/sandialabs/scot4-web-app
     # frontend container image tag
-    tag: "4.3.0"
+    tag: "4.4.2"
     # url where the frontend will be accessible
     externalHostName: "scot4.example.com"
     # name of k8s secret that holds tls crt and key, should not need to change
     tlsSecretName: "scot4-tls"
     # image pull policy for k8s
     imagePullPolicy: "Always"
-    # enable traefik middleware
-    enableTraefikMiddleware: "true"
-    # traefik middleware api version
-    # requires above (`enableTraefikMiddleware`) to be enabled
-    # traefik.containo.us/v1alpha1 or traefik.io/v1alpha1
-    traefikMiddlewareVersion: traefik.io/v1alpha1
 
   flair:
     # flair container image repository path
     repository: ghcr.io/sandialabs/scot4-flair
     # flair container image tag
-    tag: "4.3.5"
+    tag: "4.4.2"
     containerPort: 3001
     apiDatabaseName: "scot4"
     apiDatabaseUser: "scot4-db-user"
@@ -143,8 +133,8 @@ scot4:
     mojo_listen: "http://0.0.0.0:3001?reuse=1"
     mojo_workers: 5
     default_exp_time: 28800
-    admin_user: "flairadmin"
-    admin_gecos: "Flair Admin Entity"
+    admin_user: 'flairadmin'
+    admin_gecos: 'Flair Admin Entity'
     home_dir: "/opt/flair"
     flair_user: "flair"
     flair_group: "flair"
@@ -161,7 +151,7 @@ scot4:
       # inbox processor container image repository path
       repository: ghcr.io/sandialabs/scot4-inbox
       # inbox processor container image tag
-      tag: "4.3.2"
+      tag: "4.4.6"
       imagePullPolicy: "Always"
       imapSslVerify: 1
       scotApiSslVerify: 1
@@ -182,8 +172,8 @@ scot4:
       imapUsername: "username"
       imapPeek: 0
       inputQueue: "alertgroup"
-      clientClass: "Scot::Inbox::Imap"
-      permittedSenders: "*"
+      clientClass: 'Scot::Inbox::Imap'
+      permittedSenders: '*'
 
     dispatch:
       enabled: "false"
@@ -195,8 +185,21 @@ scot4:
       imapUsername: "username"
       imapPeek: 0
       inputQueue: "dispatch"
-      clientClass: "Scot::Inbox::Imap"
-      permittedSenders: "*"
+      clientClass: 'Scot::Inbox::Imap'
+      permittedSenders: '*'
+
+    vulnfeed:
+      enabled: "false"
+      logLevel: "DEBUG"
+      logFile: "/opt/scot4-inbox/var/log/vulnfeed.log"
+      imapServername: "mail.example.com"
+      imapServerPort: 993
+      imapInbox: "INBOX"
+      imapUsername: "username"
+      imapPeek: 0
+      inputQueue: "vuln_feed"
+      clientClass: 'Scot::Inbox::Imap'
+      permittedSenders: '*'
 
     event:
       enabled: "false"
@@ -208,8 +211,8 @@ scot4:
       imapUsername: "username"
       imapPeek: 0
       inputQueue: "event"
-      clientClass: "Scot::Inbox::Imap"
-      permittedSenders: "*"
+      clientClass: 'Scot::Inbox::Imap'
+      permittedSenders: '*'
 
   s3:
     backup_enabled: "false"

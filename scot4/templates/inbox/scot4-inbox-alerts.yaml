@@ -52,10 +52,8 @@ spec:
             volumeMounts:
             - name: scot4-inbox-alerts-data-storage
               mountPath: /opt/scot4-inbox/var
-          {{- if .Values.scot4.common.imagePullSecret }}
           imagePullSecrets:
-          - name: {{ .Values.scot4.common.imagePullSecret }}
-          {{- end }}
+          - name: scot4-image-pull-secret
           volumes:
           - name: scot4-inbox-alerts-data-storage
             persistentVolumeClaim:
@@ -95,4 +93,4 @@ data:
   S4INBOX_MSV_DBM_FILE: "{{ .Values.scot4.inbox.common.msvDbmFile }}"
   S4INBOX_SCOT_INPUT_QUEUE: "{{ .Values.scot4.inbox.alertgroup.inputQueue }}"
   S4INBOX_MAIL_CLIENT_CLASS: "{{ .Values.scot4.inbox.alertgroup.clientClass }}"
-{{- end }}
+{{- end }}  

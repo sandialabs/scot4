@@ -38,7 +38,7 @@ spec:
         - configMapRef:
             name: scot4-flair-env-config
         volumeMounts:
-        - name: scot4-flair-opt-storage
+        - name: scot4-flair-opt-storage 
           mountPath: /opt/flair/var
       {{- end }}
       containers:
@@ -55,7 +55,7 @@ spec:
         - containerPort: {{ .Values.scot4.flair.containerPort }}
           name: scot4-flair
         volumeMounts:
-        - name: scot4-flair-opt-storage
+        - name: scot4-flair-opt-storage 
           mountPath: /opt/flair/var
           readOnly: false
       - image: "{{ .Values.scot4.flair.repository }}:{{ .Values.scot4.flair.tag }}"
@@ -68,15 +68,13 @@ spec:
             name: scot4-flair-env-config
         command: ["/opt/flair/script/Flair", "minion", "worker", "-m", "production", "-j", "{{ .Values.scot4.flair.numMinionWorkers }}"]
         volumeMounts:
-        - name: scot4-flair-opt-storage
+        - name: scot4-flair-opt-storage 
           mountPath: /opt/flair/var
           readOnly: false
-      {{- if .Values.scot4.common.imagePullSecret }}
       imagePullSecrets:
-      - name: {{ .Values.scot4.common.imagePullSecret }}
-      {{- end }}
+      - name: scot4-image-pull-secret 
       volumes:
-      - name: scot4-flair-opt-storage
+      - name: scot4-flair-opt-storage 
         persistentVolumeClaim:
           claimName: scot4-flair-opt-pv-claim
       securityContext:

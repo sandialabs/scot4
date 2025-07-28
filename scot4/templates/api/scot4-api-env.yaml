@@ -18,3 +18,4 @@ data:
   API_EXTERNAL_BASE: {{ .Values.scot4.api.externalApiUri }}
   REQUESTS_CA_BUNDLE: "/etc/ssl/certs/ca-certificates.crt"
   ENV: {{ .Values.scot4.api.deploymentEnvironment }}
+  NUM_TRUSTED_PROXIES: "1"

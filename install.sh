@@ -5,6 +5,7 @@
 ###     tbruner@sandia.gov
 
 HELM_VERSION="v3.14.3"          # update to latest version you want
+TRAEFIK_MW_VER="v3.3.2"         # update to latest version supported by traefik deployment 
 SERVERNAME=""                   # the dns name you plan on using to acces this scot server
 REPOSERVER="x"                  # where to get the containers from
 REG_SECRET="x"                  # the secret you need (if any) to pull the containers
@@ -39,9 +40,10 @@ Usage: $0 [ options ]
                            (only necessary if using an existing DB)
     -e SURGE           set the surge limit for the API server
     -g                 pause script after displaying variables set
-    -h VERSION         sets Helm version to download, defaults to $HELM_VERSION
+    -h HELM_VERSION    sets Helm version to download, defaults to $HELM_VERSION
     -i IPADDR          IP address server will listen on for SCOT traffic
     -k TLS_KEY_FILE    set the fully qualified filename for your TLS Key file
+    -m TRAEFIK_MW_VER  set the version for the traefik middleware CRD version
     -n NO_PROXY        set the no_proxy env var (if not set in env)
     -P HTTPS_PROXY     set the proxy for https communications (if not set in env)
     -p HTTP_PROXY      set the proxy for http communications (if not set in env)
@@ -61,7 +63,7 @@ if [ "$EUID" != "0" ]; then
     exit 1;
 fi
 
-while getopts "b:c:d:e:gh:i:k:n:P:p:r:s:t:x:y:" options; do
+while getopts "b:c:d:e:gh:i:k:m:n:P:p:r:s:t:x:y:" options; do
     echo "Option ${options} = ${OPTARG}"
     case "${options}" in
         b)
@@ -88,6 +90,9 @@ while getopts "b:c:d:e:gh:i:k:n:P:p:r:s:t:x:y:" options; do
             ;;
         k)
             TLS_KEY_FILE=${OPTARG}
+            ;;
+        m)
+            TRAEFIK_MW_VER=${OPTARG}
             ;;
         n)
             NO_PROXY=${OPTARG}
@@ -315,9 +320,11 @@ EOF
 systemctl daemon-reload
 systemctl restart k3s
 
+# install traefik middlware CRDs
+KUBECTL=/usr/local/bin/kubectl
+$KUBECTL apply -f https://raw.githubusercontent.com/traefik/traefik/refs/tags/$TRAEFIK_MW_VER/docs/content/reference/dynamic-configuration/kubernetes-crd-definition-v1.yml --server-side
 
 # install Helm
-
 if ! type helm >/dev/null 2>/dev/null; then
     echo "Installing Helm..."
     HELM_TAR="helm-$HELM_VERSION-linux-amd64.tar.gz"
@@ -335,7 +342,8 @@ fi
 # Adjust Firewall rules
 # Necessary Firewall Tweaks https://docs.k3s.io/installation/requirements?os=rhel
 # The port 6443 rule isn't required as this is a single node install
-if [ "$OS" = "RHEL" ]; then
+# if [ "$OS" = "RHEL" ]; then
+if [ -e /usr/bin/firewall-cmd ]; then
     # api server
     # firewall-cmd --permanent --add-port=6443/tcp
     # pods
@@ -349,9 +357,13 @@ else
     # uncmment 6443 rule if multi node install
     # ufw allow 6443/tcp 
     # pods
-    ufw allow from 10.42.0.0/16 to any 
-    # services
-    ufw allow from 10.43.0.0/16 to any 
+    if [ -e /usr/sbin/ufw ]; then
+        ufw allow from 10.42.0.0/16 to any 
+        # services
+        ufw allow from 10.43.0.0/16 to any 
+    else
+        echo "ERROR: did not modify firewall because could not determine type"
+    fi
 fi
 
 if ! type pip; then 
@@ -368,7 +380,7 @@ BASHRC=/home/scot4/.bashrc
 mkdir -p ~scot4/.kube
 cp /etc/rancher/k3s/k3s.yaml ~scot4/.kube/config
 chown -R scot4:scot4 ~scot4/.kube
-KUBECTL=/usr/local/bin/kubectl
+
 
 echo "Examining $BASHRC for alias and tab completions"
 if ! grep -q "KUBECONFIG" $BASHRC; then
