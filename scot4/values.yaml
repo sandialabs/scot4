@@ -62,11 +62,11 @@ scot4:
     # api container image repository path
     repository: ghcr.io/sandialabs/scot4-api
     # api container image tag
-    tag: "4.4.2"
+    tag: "4.4.3"
     # api util container image repository path
     utilRepository: ghcr.io/sandialabs/scot4-api-util
     # api util container image tag
-    utilTag: "4.4.2"
+    utilTag: "4.4.3"
     # first superuser's email when creating account
     firstSuperUserEmail: "scot-admin@example.com"
     # first superuser's username
