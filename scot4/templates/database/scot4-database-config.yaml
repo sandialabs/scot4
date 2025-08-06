@@ -17,4 +17,5 @@ data:
     disable_log_bin
     bind-address = 0.0.0.0
     explicit_defaults_for_timestamp=1
+    sql_mode="NO_ENGINE_SUBSTITUTION" 
  {{- end }}
