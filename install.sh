@@ -369,7 +369,7 @@ fi
 if ! type pip; then 
     echo "Installing PIP..."
     if [ "$OS" = "RHEL" ];then
-        yum -y install pip
+        yum -y install python3-pip
     else
         sudo apt-get -y install python3-pip
     fi
