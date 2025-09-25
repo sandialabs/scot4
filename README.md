@@ -40,7 +40,7 @@ useradd -m -s /bin/bash -c "SCOT4 User" scot4
 su - scot4
 git clone https://github.com/sandialabs/scot4.git
 cd scot4
-./install.sh 
+sudo ./install.sh 
 ```
 
 ## Join the SCOT Community
