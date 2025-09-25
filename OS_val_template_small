@@ -1,0 +1,57 @@
+# Values specific to prod deployment
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+# Only need to specify diff from values.yaml
+#
+# THE Folowing will be replaced by the ih2.sh script
+# REPOSITORY => the REPOSERVER set via command line options
+# REPOPATH   => typically "scot/scot4" but can be changed by command line
+# VARIANT    => typically "prod"|"qual"|"dev", defaults to "prod"
+# SERVERNAME => set via install_helper.sh
+# AIRFLOW    => server name of your airflow instance, set in install_help.sh
+#               command line
+# S3_SERVER  => server of your S3 storage system, set on command line in
+#               instal_help.sh
+#
+
+meilisearch:
+  persistence:
+    size: "10Gi"
+
+scot4:
+  database:
+    storageCapacity: "10Gi"
+  api:
+    internalDB: "true"
+    fakedata: "false"
+    # repository: "REPOSITORY/REPOPATH/scot-api"
+    externalApiUri: "https://SERVERNAME/api/v1"
+    enrichmentHost: "https://AIRFLOW"
+    # deploymentEnvironment: "PROD"
+    numReplicas: REPLICAS
+    maxSurge: SURGE
+    storageCapacity: "10Gi"
+
+  frontend:
+    # repository: "REPOSITORY/REPOPATH/scot4-web-app"
+    externalHostName: "SERVERNAME"
+
+  # flair:
+    # repository: "REPOSITORY/REPOPATH/flair"
+
+  inbox:
+    common:
+      testMode: "false"
+      storageCapacity: "5Gi"
+      # repository: "REPOSITORY/REPOPATH/scot4-inbox"
+    alertgroup:
+      enabled: "false"
+    dispatch:
+      enabled: "false"
+    event:
+      enabled: "false"
+
+  s3:
+    testMode: "false"
+    storageCapacity: "5Gi"
+    s3Address: "s3://S3_SERVER"
