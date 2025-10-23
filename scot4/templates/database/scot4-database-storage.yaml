@@ -1,4 +1,4 @@
-{{- if eq .Values.scot4.api.internalDB "true" }}
+{{- if .Values.scot4.api.internalDB }}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:

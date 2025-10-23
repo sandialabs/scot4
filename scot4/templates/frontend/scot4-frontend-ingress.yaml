@@ -75,7 +75,7 @@ spec:
     forceSTSHeader: true
     stsSeconds: 315360000
     stsIncludeSubdomains: true
-{{- if eq .Values.scot4.redirect.enabled "true" }}
+{{- if .Values.scot4.redirect.enabled }}
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress

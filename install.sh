@@ -1,78 +1,152 @@
-#!/bin/bash 
+#!/bin/bash
 
-### install.sh
-###     automate installation tasks for SCOT4
-###     tbruner@sandia.gov
+set_defaults () {
+    BASHRC=/home/scot4/.bashrc
+    # update HELM and TRAEFIK to desired versions
+    # HELM_VERSION="v3.14.3"
+    HELM_VERSION="v3.19.0"
+    # TRAEFIK_MW_VER="v3.3.2"
+    TRAEFIK_MW_VER="v3.3.6"
 
-HELM_VERSION="v3.14.3"          # update to latest version you want
-TRAEFIK_MW_VER="v3.3.2"         # update to latest version supported by traefik deployment 
-SERVERNAME=""                   # the dns name you plan on using to acces this scot server
-REPOSERVER="x"                  # where to get the containers from
-REG_SECRET="x"                  # the secret you need (if any) to pull the containers
-REG_SECRET_NAME="x"             # the name of the previous secret
-AIRFLOW="airflow-server"        # if you have an airflow server, refer to it here
-S3SERVER="minio-server"         # if you have a minio or other S3 server
-TLS_CRT_FILE=""                 # point to a crt certificate file
-TLS_KEY_FILE=""                 # point to a key certificate file
-SQLALCHEMY_DATABASE_URI="x"     # set this if you already have a database to use
-PAUSE="false"                   # pause the script at strategic points, useful debugging
-REPLICAS=1                      # number of api replical pods, 2 for testing on small
-                                # vm.  up this to 16 or so for larger production
-SURGE=1                         # surge setting, increase this for production
-TYPE="OS"
+    # pick up the server's name
+    SERVERNAME=$(hostname)
 
-determine_os () {
-    if [ -f /etc/redhat-release ]; then
-        OS='RHEL'
-    fi
-    if [ -f /etc/debian_version ]; then
-        OS='Ubuntu'
-    fi
+    # Vars to access repository container images
+    REPOSERVER="x"
+    REPOPATH="x"
+    REG_SECRET="x"
+    REG_SECRET_NAME="x"
+
+    # if you know and wish to use a AirFlow Server or S3 File server
+    AIRFLOW="airflow-server"
+    S3SERVER="minio-server"
+
+    # TLS Files
+    TLS_CRT_FILE=""
+    TLS_KEY_FILE=""
+
+    # if you are going to use an existing database external to SCOT
+    # set the sql alchemy uri here
+    SQLALCHEMY_DATABASE_URI="x"
+
+    # Number of API replicas to create, 2 for testing.  More depending on number of users
+    REPLICAS=1
+
+    # surge setting for fastapi
+    SURGE=1
+
+    # Set the type of install OS (default) | dev | qual | prod ... 
+    SCOT_INSTANCE_TYPE="OS"
+
+    # set this to "true" if you want the install script to pause at 
+    # strategic points
+    PAUSE="false"
+
+    # pick up proxy settings from environment
+    # HTTP_PROXY=$http_proxy
+    # HTTPS_PROXY=$https_proxy
+    # NO_PROXY=$no_proxy
+
+    # program shortcuts
+    KUBECTL=/usr/local/bin/kubectl
+    HELM=/usr/local/bin/helm
+    NAMESPACE="scot4"
+    export CONTAINERD_LOG_LEVEL=debug
+    KUBECONFIGDIR=/home/scot4/.kube
+    export KUBECONFIG=$KUBECONFIGDIR/config
 }
 
-usage() {
-    cat <<EOF 1>&2
-Usage: $0 [ options ]
-
-    -b REPLICAS        set the number of API server replicas to create
-    -c TLS_CRT_FILE    set the fully qualified filename for your TLS Cert file
-    -d SQLALCHEMY_URI  set the SQLALCHEMY_DATABASE_URI necessary to connect to your database
-                           (only necessary if using an existing DB)
-    -e SURGE           set the surge limit for the API server
-    -g                 pause script after displaying variables set
-    -h HELM_VERSION    sets Helm version to download, defaults to $HELM_VERSION
-    -i IPADDR          IP address server will listen on for SCOT traffic
-    -k TLS_KEY_FILE    set the fully qualified filename for your TLS Key file
-    -m TRAEFIK_MW_VER  set the version for the traefik middleware CRD version
-    -n NO_PROXY        set the no_proxy env var (if not set in env)
-    -P HTTPS_PROXY     set the proxy for https communications (if not set in env)
-    -p HTTP_PROXY      set the proxy for http communications (if not set in env)
-    -r REPOSERVER      set the Container Registry Servername[:port]
-    -s SERVERNAME      set the servername for this scot instance, usually, scot4
-    -t TYPE            OS (default) | dev | qual | prod
-    -x REG_SECRET      set the pull secret for the Container Registry
-    -y REG_SECRET_NAME the name of the pull secret
-EOF
+output_variables () {
+    echo "---"
+    echo "--- SCOT4 Install Variables "
+    echo "---"
+    echo "    BASE_DIR        = $BASE_DIR"
+    echo "    OS              = $OS"
+    echo "    Server Name     = $SERVERNAME"
+    echo "    Helm Version    = $HELM_VERSION"
+    echo "    Traefik Vers    = $TRAEFIK_MW_VER"
+    echo "    TLS CRT FILE    = $TLS_CRT_FILE"
+    echo "    TLS_KEY_FILE    = $TLS_KEY_FILE"
+    echo "    SQLAlchemy URI  = $SQLALCHEMY_DATABASE_URI"
+    echo "    HTTPS_PROXY     = $HTTPS_PROXY"
+    echo "    HTTP_PROXY      = $HTTP_PROXY"
+    echo "    NO_PROXY        = $NO_PROXY"
+    echo "    IPADDR          = $IPADDR"
+    echo "    REPOSERVER      = $REPOSERVER"
+    echo "    REPOPATH        = $REPOPATH"
+    echo "    REG_SECRET_NAME = $REG_SECRET_NAME"
+    echo "    REG_SECRET      = $REG_SECRET"
+    echo "    AIRFLOW         = $AIRFLOW"
+    echo "    S3SERVER        = $S3SERVER"
+    echo ""
 }
 
-determine_os
 
-if [ "$EUID" != "0" ]; then
-    echo "!!!! ---- THIS SCRIPT MUST BE RUN AS ROOT! ---- !!!!"
-    echo "try: sudo $0"
-    exit 1;
+if [ "$EUID" != "0" ];then
+    echo "!!!! ERROR: this script must be run as root !!!!"
+    echo "     try: sudo $0"
+    exit 1
 fi
 
-while getopts "b:c:d:e:gh:i:k:m:n:P:p:r:s:t:x:y:" options; do
-    echo "Option ${options} = ${OPTARG}"
-    case "${options}" in
+echo "---"
+echo "--- Determining Script absolute directory..."
+echo "---"
+
+SCRIPT_PATH="${BASH_SOURCE[0]}"
+while [ -L "${SCRIPT_PATH}" ]; do
+    SCRIPT_DIR="$(cd -P "$(dirname "${SCRIPT_PATH}")" >/dev/null 2>&1 && pwd)"
+    SCRIPT_PATH="$(readlink "${SCRIPT_PATH}")"
+    [[ "${SCRIPT_PATH}" != /* ]] && SCRIPT_PATH="${SCRIPT_DIR}/${SCRIPT_PATH}"
+done
+SCRIPT_DIR="$(cd -P "$(dirname "${SCRIPT_PATH}")" >/dev/null 2>&1 && pwd)"
+BASE_DIR=$SCRIPT_DIR
+INSTFUNC=$BASE_DIR/inst_func
+
+echo "    BASE_DIR = $BASE_DIR"
+
+echo "---"
+echo "--- Determining Operating System..."
+echo "---"
+
+if [ -f /etc/redhat-release ]; then
+    OS='RHEL'
+    SUDO_GROUP_NAME="wheel"
+fi
+if [ -f /etc/debian_version ]; then
+    OS='Ubuntu'
+    SUDO_GROUP_NAME="sudo"
+fi
+echo "    OS = $OS"
+
+echo "---"
+echo "--- checking correct HOME environment var"
+echo "---"
+if [ "$HOME" != "/home/scot4" ]; then
+    echo "??? weirdly HOME not set to /home/scot4"
+    echo "    home was $HOME"
+    echo "    reseting HOME ..."
+    export HOME=/home/scot4
+fi
+
+echo "    HOME = $HOME"
+
+set_defaults
+
+echo "---"
+echo "--- Parsing Command Line..."
+echo "---"
+while getopts "a:b:c:d:e:ghi:k:m:n:P:p:r:R:s:t:v:x:y:" opt "$@"; do
+    case "${opt}" in
+        a)
+            AIRFLOW=${OPTARG}
+            ;;
         b)
             REPLICAS=${OPTARG}
             ;;
         c)
             TLS_CRT_FILE=${OPTARG}
             ;;
-        d)
+        d) 
             SQLALCHEMY_DATABASE_URI=${OPTARG}
             INTERNAL_DB="false"
             ;;
@@ -91,7 +165,7 @@ while getopts "b:c:d:e:gh:i:k:m:n:P:p:r:s:t:x:y:" options; do
         k)
             TLS_KEY_FILE=${OPTARG}
             ;;
-        m)
+        m) 
             TRAEFIK_MW_VER=${OPTARG}
             ;;
         n)
@@ -101,7 +175,7 @@ while getopts "b:c:d:e:gh:i:k:m:n:P:p:r:s:t:x:y:" options; do
         P)
             HTTPS_PROXY=${OPTARG}
             https_proxy=${OPTARG}
-	        ;;
+            ;;
         p)
             HTTP_PROXY=${OPTARG}
             http_proxy=${OPTARG}
@@ -109,16 +183,22 @@ while getopts "b:c:d:e:gh:i:k:m:n:P:p:r:s:t:x:y:" options; do
         r)
             REPOSERVER=${OPTARG}
             ;;
-        s)
+        R)
+            REPOPATH=${OPTARG}
+            ;;
+        s) 
             SERVERNAME=${OPTARG}
             ;;
-        t) 
-            TYPE=${OPTARG}
+        t)
+            SCOT_INSTANCE_TYPE=${OPTARG}
             ;;
-        x) 
+        v)
+            VARIANT=${OPTARG}
+            ;;
+        x)
             REG_SECRET=${OPTARG}
             ;;
-        y) 
+        y)
             REG_SECRET_NAME=${OPTARG}
             ;;
         :)
@@ -127,7 +207,7 @@ while getopts "b:c:d:e:gh:i:k:m:n:P:p:r:s:t:x:y:" options; do
             exit 1
             ;;
         *)
-            echo "Unknown option provided"
+            echo "Error: Unknown option provided"
             usage
             exit 1
             ;;
@@ -137,9 +217,12 @@ while getopts "b:c:d:e:gh:i:k:m:n:P:p:r:s:t:x:y:" options; do
             ;;
     esac
 done
+shift $((OPTIND-1))
 
+echo "---"
+echo "--- Determining server name..."
+echo "---"
 
-# Ask User for Server Name: e.g. scot4-dev
 if [ "$SERVERNAME" = "" ]; then
     SERVERDEFAULT=$(hostname)
     echo "==="
@@ -156,8 +239,12 @@ if [ "$SERVERNAME" = "localhost.localdomain" ]; then
     echo "--- removing localdomain from hostname $SERVERNAME"
     SERVERNAME="localhost"
 fi
+echo "    SERVERNAME = $SERVERNAME"
 
-# Ask user for location of TLS .crt and .key files
+echo "---"
+echo "--- Setting up TLS..."
+echo "---"
+
 if [ "$TLS_KEY_FILE" = "" ]; then
     echo "==="
     echo "=== Please enter the fully qualified path to your TLS .key file"
@@ -165,6 +252,7 @@ if [ "$TLS_KEY_FILE" = "" ]; then
     echo "==="
     read -p 'KEY File => ' TLS_KEY_FILE
 fi
+
 if [ "$TLS_CRT_FILE" = "" ]; then 
     echo "==="
     echo "=== Please enter the fully qualified path to your TLS .crt file"
@@ -199,6 +287,9 @@ if [ "$TLS_CRT_FILE" = "" ] && [ "$TLS_KEY_FILE" = "" ];then
     fi
 fi
 
+echo "---"
+echo "--- Determining IP address..."
+echo "---"
 if [ "$IPADDR" = "" ]; then
     echo "==="
     echo "=== IPADDR not SET.  Select FROM IP addresses below:"
@@ -210,33 +301,64 @@ if [ "$IPADDR" = "" ]; then
     do
         break
     done
-    echo "=== IPADDR selected = $IPADDR"
+    echo "    IPADDR = $IPADDR"
 fi
 
-if [ "$HTTPS_PROXY" = "" ]; then
+echo "---"
+echo "--- Determining Proxy Settings..."
+echo "---"
+if [[ "$https_proxy" == "" && "$HTTPS_PROXY" == "" ]]; then
     echo "==="
-    echo "=== HTTPS_PROXY NOT SET.  If you are behind a proxy you will need "
-    echo "=== to set this variable.  Press enter to leave it unset."
+    echo "=== Neither HTTPS_PROXY nor https_proxy is set in environment"
+    echo "===   if you are behind a proxy, you will need to set this variable."
+    echo "===   Enter proxy or press enter to leave the variable unset"
     echo "==="
     read -p 'HTTPS_PROXY => ' HTTPS_PROXY
-    https_proxy="$HTTPS_PROXY"
+    https_proxy=$HTTPS_PROXY
+else
+    if [[ "$https_proxy" != "$HTTPS_PROXY" ]]; then
+        if [[ "$https_proxy" != "" && "$HTTPS_PROXY" == "" ]]; then
+            echo "https_proxy is set but HTTPS_PROXY is unset.  Setting HTTPS_PROXY to match."
+            HTTPS_PROXY=$https_proxy
+        fi
+        if [[ "$https_proxy" == "" && "$HTTPS_PROXY" != "" ]]; then
+            echo "HTTPS_PROXY is set but https_proxy is unset.  Setting https_proxy to match."
+            https_proxy=$HTTPS_PROXY
+        fi
+    fi
 fi
 
-if [ "$HTTP_PROXY" = "" ]; then
+if [[ "$http_proxy" == "" && "$HTTP_PROXY" == "" ]]; then
     echo "==="
-    echo "=== HTTPS_PROXY NOT SET.  If you are behind a proxy you will need "
-    echo "=== to set this variable.  Press enter to leave it unset."
+    echo "=== Neither HTTP_PROXY nor http_proxy is set in environment"
+    echo "===   if you are behind a proxy, you will need to set this variable."
+    echo "===   Enter proxy or press enter to leave the variable unset"
     echo "==="
-    read -p 'HTTP_PROXY => ' HTTPS_PROXY
-    http_proxy="$HTTP_PROXY"
+    read -p 'HTTP_PROXY => ' HTTP_PROXY
+    http_proxy=$HTTP_PROXY
+else
+    if [[ "$http_proxy" != "$HTTP_PROXY" ]]; then
+        if [[ "$http_proxy" != "" && "$HTTP_PROXY" == "" ]]; then
+            echo "http_proxy is set but HTTP_PROXY is unset.  Setting HTTP_PROXY to match."
+            HTTPS_PROXY=$https_proxy
+        fi
+        if [[ "$https_proxy" == "" && "$HTTPS_PROXY" != "" ]]; then
+            echo "HTTP_PROXY is set but http_proxy is unset.  Setting http_proxy to match."
+            http_proxy=$HTTP_PROXY
+        fi
+    else
+        echo "HTTP proxy set and matching"
+    fi
 fi
+
 
 if [ "$NO_PROXY" = "" ] && [ "$HTTPS_PROXY" = "" ] && [ "$HTTP_PROXY" = "" ]; then
     echo "no proxy is a good proxy" # no need to worry about no_proxy
 else
     echo "http(s) proxies set, checking no_proxy"
     if [ "$NO_PROXY" = "" ]; then
-        DEFNOPROXY="127.0.0.1,localhost,::1,10.,172.16.,192.168.,*.local,.local,169.254/16,$IPADDR"
+        HNAME=$(hostname)
+        DEFNOPROXY="$HNAME,127.0.0.1,localhost,::1,10.,172.16.,192.168.,*.local,.local,169.254/16,$IPADDR"
         echo "==="
         echo "=== NO_PROXY NOT SET.  If you are behind a proxy you will need "
         echo "=== to set this variable.  Press enter to accept default."
@@ -252,61 +374,164 @@ else
         fi
         no_proxy="$NO_PROXY"
     else 
-	NO_PROXY="$NO_PROXY,$IPADDR"
+    NO_PROXY="$NO_PROXY,$IPADDR"
     no_proxy="$NO_PROXY"
     fi
 fi
 
-# I hate proxies
 export NO_PROXY no_proxy HTTP_PROXY http_proxy HTTPS_PROXY https_proxy
 
-
-echo ""
-echo "Installing SCOT4 "
-echo "    OS             = $OS"
-echo "    Server Name    = $SERVERNAME"
-echo "    Helm Version   = $HELM_VERSION"
-echo "    TLS CRT FILE   = $TLS_CRT_FILE"
-echo "    TLS_KEY_FILE   = $TLS_KEY_FILE"
-echo "    SQLAlchemy URI = $SQLALCHEMY_DATABASE_URI"
-echo "    HTTPS_PROXY    = $HTTPS_PROXY"
-echo "    HTTP_PROXY     = $HTTP_PROXY"
-echo "    NO_PROXY       = $NO_PROXY"
-echo "    IPADDR         = $IPADDR"
-echo "    REPOSERVER     = $REPOSERVER"
-echo "    REG_SECRET_NAME = $REG_SECRET_NAME"
-echo "    REG_SECRET      = $REG_SECRET"
-echo ""
-
-if [ $PAUSE = "true" ];then
-    read -p "Enter to proceed..." FOO
-fi
-
-if getent passwd scot4 > /dev/null 2>&1; then
-    echo "User scot4 already exists..."
-else
-    echo "Adding scot4 User..."
-    useradd -m -s /bin/bash -c "SCOT4 User" scot4
-fi
-
-# Install K3s
-
-if ! type k3s >/dev/null 2>/dev/null; then
-    echo "Installing k3s..."
-    curl -sfLl https://get.k3s.io | 
-        INSTALL_K3S_EXEC="--prefer-bundled-bin --disable-cloud-controller" sh -
-    if [ $? -ne 0 ]; then
-        echo "!!! Download of K3s failed !!!"
-        exit 1
+echo "---"
+echo "--- Adjusting Firewall Rules..."
+echo "---"
+# Adjust Firewall rules
+# Necessary Firewall Tweaks https://docs.k3s.io/installation/requirements?os=rhel
+if [ -e /usr/bin/firewall-cmd ]; then
+    FWSTATUS=$(systemctl is-active firewalld)
+    if [ "$FWSTATUS" == "active" ]; then
+        # api server
+        firewall-cmd --permanent --add-port=6443/tcp
+        # pods
+        firewall-cmd --permanent --zone=trusted --add-source=10.42.0.0/16 
+        # services
+        firewall-cmd --permanent --zone=trusted --add-source=10.43.0.0/16 
+        firewall-cmd --reload
+    else
+        echo "    Firewalld is not active, skipping addition of firewall rules"
     fi
-else 
-    echo "K3S already installed."
+else
+    if [ -e /usr/sbin/ufw ]; then
+        if ufw status | grep -qw active; then
+            ufw allow 6443/tcp                  # apiserver
+            ufw allow from 10.42.0.0/16 to any  # pods
+            ufw allow from 10.43.0.0/16 to any  # services
+        else
+            echo "    UFW is not active, skipping additon of firewall rules"
+        fi
+    else
+        echo "!!!"
+        echo "!!! WARNING: did not modify firewall because could not determine type"
+        echo "!!!    If you are running a firewall on this system, "
+        echo "!!!    and SCOT fails to install or work after install," 
+        echo "!!!    this could be why."
+        echo "!!!"
+    fi
 fi
 
-# update /etc/systemd/system/k3s.service.env with proxy information
+
+output_variables
+
+echo "---"
+echo "--- Creating SCOT4 user if necessary..."
+echo "---"
+if getent passwd "scot4" > /dev/null 2>&1; then
+    echo "    scot4 already exists"
+else
+    if useradd -m -s /bin/bash -c "SCOT4 User" scot4; then
+        echo "    created scot4 user"
+    else
+        echo "    !!! Failed to create scot4 user !!!"
+        exit 2
+    fi
+fi
+if id -Gn "scot4" | grep -qw "$SUDO_GROUP_NAME"; then
+    echo "scot4 already in group $SUDO_GROUP_NAME"
+else
+    if usermod -aG $SUDO_GROUP_NAME scot4; then
+        echo "    Added scot4 to $SUDO_GROUP_NAME"
+    else
+        echo "    !!! Failed to add scot4 to $SUDO_GROUP_NAME !!!"
+        exit 3
+    fi
+fi
+    
+echo "---"
+echo "--- Adding PROXY vars to env files if necessary..."
+echo "---"
+for ENVFILE in /home/scot4/.bashrc /etc/environment; do
+    if ! grep -q "HTTP_PROXY=" $ENVFILE; then
+        echo "HTTP_PROXY=$HTTP_PROXY" >> $ENVFILE
+    fi
+    if ! grep -q "HTTPS_PROXY=" $ENVFILE; then
+        echo "HTTPS_PROXY=$HTTPS_PROXY" >> $ENVFILE
+    fi
+    if ! grep -q "http_proxy=" $ENVFILE; then
+        echo "http_proxy=$http_proxy" >> $ENVFILE
+    fi
+    if ! grep -q "https_proxy=" $ENVFILE; then
+        echo "https_proxy=$https_proxy" >> $ENVFILE
+    fi
+    if ! grep -q "NO_PROXY=" $ENVFILE; then
+        echo "NO_PROXY=$NO_PROXY" >> $ENVFILE
+    fi
+    if ! grep -q "NO_PROXY=" $ENVFILE; then
+        echo "no_proxy=$no_proxy" >> $ENVFILE
+    fi
+done
+
+echo "---"
+echo "--- Disabling SWAP, because that's how kubernetes likes to roll..."
+echo "---"
+swapoff -a
+sed -e '/swap/ s/^#*/#/' -i /etc/fstab
+
+
+echo "---"
+echo "--- checking selinux status"
+echo "---"
+SE_ENABLED=$(sestatus | grep 'SELinux status' | awk '{print $3}')
+
+if [ "$SE_ENABLED" == "enabled" ]; then
+    echo "    SELinux is enabled"
+    SELINUX="--selinux"
+    ENFORCING=$(getenforce)
+    if [ "$ENFORCING" == "Enforcing" ];then
+        echo "    SELinux in enforcing mode, setting to permissive mode..."
+        setenforce 0
+        sestatus
+        DISABLEDSE="yes"
+    else
+        echo "    SELinux in permissive mode"
+        DISABLEDSE="no"
+    fi
+else
+    echo "    SELinux disabled"
+    SELINUX=""
+fi
+
+
+echo "---"
+echo "--- Installing K3S..."
+echo "---"
+if ! type /usr/local/bin/k3s >/dev/null 2>/dev/null; then
+    echo "Installing k3s..."
+    set -x
+    curl -sfLl https://get.k3s.io | INSTALL_K3S_EXEC="--prefer-bundled-bin --disable-cloud-controller $SELINUX" sh -
+    if [ $? -ne 0 ]; then
+        echo "    !!! Download of K3s failed !!!"
+        exit 4
+    fi
+    set +x
+else 
+    echo "    K3S already installed."
+fi
+
+echo "---"
+echo "--- Setting up Kubectl aliases..."
+echo "---"
+mkdir -p $KUBECONFIGDIR
+cp /etc/rancher/k3s/k3s.yaml $KUBECONFIG
+chown -R scot4:scot4 $KUBECONFIGDIR
+export KUBECONFIG=$KUBECONFIG
+ls -l $KUBECONFIGDIR
+
+
 KENV="/etc/systemd/system/k3s.service.env"
+echo "---"
+echo "--- update $KENV with proxy information..."
+echo "---"
 if [ -f $KENV ]; then
-    echo "Backing up existing $KENV to $KENV.bak"
+    echo "    Backing up existing $KENV to $KENV.bak"
     mv $KENV $KENV.bak
 fi
 cat > $KENV <<EOF 
@@ -317,110 +542,283 @@ HTTPS_PROXY="$HTTPS_PROXY"
 no_proxy="$no_proxy"
 NO_PROXY="$NO_PROXY"
 EOF
-systemctl daemon-reload
-systemctl restart k3s
 
+echo "=== reloading systemctl config"
+if systemctl daemon-reload;then 
+    echo "    reloaded systemctl daemon"
+else
+    echo "    failed to reload systemctl"
+    exit 1
+fi
+
+echo "=== restarting k3s"
+if systemctl restart k3s; then
+    echo "    restarted k3s"
+else
+    echo "    failed to restart k3s"
+    exit 1
+fi
+
+
+echo "=== testing k3s readiness"
+export KUBECTL=/usr/local/bin/kubectl
+# whoami
+# echo "kubeconfig = $KUBECONFIG"
+TRYCOUNT=0
+until $KUBECTL get ns; do
+    echo "    kubectl may not be ready yet..."
+    sleep 5
+    TRYCOUNT=$((TRYCOUNT + 1))
+    if [ $TRYCOUNT -ge 10 ]; then
+        echo "    !!! giving up after 10 tries."
+        echo ""
+        echo "    k3s install may have had an error.  Try these step:"
+        echo "        1. uninstall k3s.   sudo /usr/local/bin/k3s-uninstall.sh"
+        echo "        2. remove dir.      sudo rm -rf /etc/rancher/node"
+        echo "        3. restart install. sudo ./install.sh"
+        echo ""
+        exit 1
+    fi
+done
+
+echo "=== awaiting completion of traefik install"
+# wait until traefic is installed
+TRYCOUNT=0
+until [ $($KUBECTL -n kube-system get pods | grep helm-install-traefik | grep -i completed | wc -l) -eq 2 ]; do
+    $KUBECTL -n kube-system get pods
+    echo "    Traefik not installed yet..."
+    sleep 15
+    TRYCOUNT=$((TRYCOUNT + 1))
+    if [ $TRYCOUNT -ge 10 ]; then
+        echo "    !!! giving up after 10 tries."
+        echo ""
+        echo "    k3s install may have had an error.  Try these step:"
+        echo "        1. uninstall k3s.   sudo /usr/local/bin/k3s-uninstall.sh"
+        echo "        2. remove dir.      sudo rm -rf /etc/rancher/node"
+        echo "        3. restart install. sudo ./install.sh"
+        echo ""
+        exit 1
+    fi
+done
+$KUBECTL -n kube-system get pods
+echo "    traefik appears to be installed and ready"
+
+
+echo "==="
+echo "=== installing traefik middleware"
+echo "==="
 # install traefik middlware CRDs
-KUBECTL=/usr/local/bin/kubectl
-$KUBECTL apply -f https://raw.githubusercontent.com/traefik/traefik/refs/tags/$TRAEFIK_MW_VER/docs/content/reference/dynamic-configuration/kubernetes-crd-definition-v1.yml --server-side
+if $KUBECTL apply -f https://raw.githubusercontent.com/traefik/traefik/refs/tags/$TRAEFIK_MW_VER/docs/content/reference/dynamic-configuration/traefik.io_middlewares.yaml; then
+     echo "    applied traefik middleware config"
+ else
+     echo "    !!! failed to apply traefik config"
+     exit 1
+ fi
 
-# install Helm
-if ! type helm >/dev/null 2>/dev/null; then
-    echo "Installing Helm..."
+
+echo "---"
+echo "--- Installing HELM..."
+echo "---"
+if ! type /usr/local/bin/helm >/dev/null 2>/dev/null; then
+    echo "    Installing Helm..."
     HELM_TAR="helm-$HELM_VERSION-linux-amd64.tar.gz"
     curl -sfl -o /tmp/$HELM_TAR https://get.helm.sh/$HELM_TAR
     if [ $? -ne 0 ]; then
-        echo "!!! Download of HELM failed !!!"
-        exit 1
+        echo "    !!! Download of HELM failed !!!"
+        exit 5
     fi
     tar zxvf /tmp/$HELM_TAR -C /tmp
     mv /tmp/linux-amd64/helm /usr/local/bin/helm
 else 
-    echo "Helm already installed."
+    echo "    Helm already installed."
 fi
 
-# Adjust Firewall rules
-# Necessary Firewall Tweaks https://docs.k3s.io/installation/requirements?os=rhel
-# The port 6443 rule isn't required as this is a single node install
-# if [ "$OS" = "RHEL" ]; then
-if [ -e /usr/bin/firewall-cmd ]; then
-    # api server
-    # firewall-cmd --permanent --add-port=6443/tcp
-    # pods
-    firewall-cmd --permanent --zone=trusted --add-source=10.42.0.0/16 
-    # services
-    firewall-cmd --permanent --zone=trusted --add-source=10.43.0.0/16 
-    firewall-cmd --reload
-else
-    # Ubuntu
-    # api server port
-    # uncmment 6443 rule if multi node install
-    # ufw allow 6443/tcp 
-    # pods
-    if [ -e /usr/sbin/ufw ]; then
-        ufw allow from 10.42.0.0/16 to any 
-        # services
-        ufw allow from 10.43.0.0/16 to any 
-    else
-        echo "ERROR: did not modify firewall because could not determine type"
-    fi
-fi
 
-if ! type pip; then 
-    echo "Installing PIP..."
+echo "---"
+echo "--- Installing Pip3..."
+echo "---"
+if ! type pip3; then 
     if [ "$OS" = "RHEL" ];then
-        yum -y install python3-pip
+        INST_YUM_CMD="sudo yum -y install python3-pip"
     else
-        sudo apt-get -y install python3-pip
+        INST_YUM_CMD="sudo apt-get -y install python3-pip"
+    fi
+    if $INST_YUM_CMD; then
+        echo "installed pip3" 
+    else
+        echo "FAILED pip3 install!"
+        exit 6
     fi
 fi
 
-# Install kubectl tab-completion and allow alias to work as well
-BASHRC=/home/scot4/.bashrc
-mkdir -p ~scot4/.kube
-cp /etc/rancher/k3s/k3s.yaml ~scot4/.kube/config
-chown -R scot4:scot4 ~scot4/.kube
+
+echo "---"
+echo "--- Checking PyYAML status..."
+echo "---"
+PYYAMLVER=$(python3 -m pip freeze | grep -i pyyaml | awk -F== '{print $2}')
+PYYAMLMAJ=$(echo $PYYAMLVER | awk -F. '{print $1}')
+
+echo "    pyYaml version = $PYYAMLVER"
+echo "    pyYaml major   = $PYYAMLMAJ"
+
+if [ "$PYYAMLMAJ" == "" ] || [ "$PYYAMLMAJ" -lt 5 ]; then
+    echo "Upgrading PyYAML..."
+    if python3 -m pip install --upgrade PyYAML; then
+        echo "    PyYAML upgraded"
+    else 
+        echo "    !!! PyYAML upgrade FAILED"
+        exit 1
+    fi
+fi
 
 
-echo "Examining $BASHRC for alias and tab completions"
+echo "---"
+echo "--- Examining $BASHRC for alias and tab completions"
+echo "---"
 if ! grep -q "KUBECONFIG" $BASHRC; then
-    echo "export KUBECONFIG=~scot4/.kube/config" >> $BASHRC
-    export KUBECONFIG="~scot4/.kube/config"
+    echo "export KUBECONFIG=$KUBECONFIG" >> $BASHRC
+    export KUBECONFIG=$KUBECONFIG
 fi
 if ! grep -q "alias k=$KUBECTL" $BASHRC; then
-	echo "alias k=$KUBECTL" >> $BASHRC 
+    echo "alias k=$KUBECTL" >> $BASHRC 
 fi
 if ! grep -q "source <($KUBECTL" $BASHRC; then
-	echo "source <($KUBECTL completion bash)" >> $BASHRC
+    echo "source <($KUBECTL completion bash)" >> $BASHRC
 fi
 if ! grep -q "complete -o default -F __start_kubectl k" $BASHRC; then 
-	echo "complete -o default -F __start_kubectl k" >> $BASHRC
+    echo "complete -o default -F __start_kubectl k" >> $BASHRC
 fi
 if ! grep -q "$KUBECTL config set-context" $BASHRC; then
-	echo "$KUBECTL config set-context --current --namespace=scot4" >> $BASHRC
+    echo "$KUBECTL config set-context --current --namespace=scot4" >> $BASHRC
 fi
-chown -R scot4:scot4 /home/scot4/.bashrc
+chown -R scot4:scot4 $BASHRC
+echo  "    Updated aliases"
 
-# Disable swap because kubernetes likes that off
-echo "Disabling swap, because thats how Kubernetes likes to roll"
-swapoff -a
-# find any line with swap in it and place one # at the beginning of the line
-sed -e '/swap/ s/^#*/#/' -i /etc/fstab
+RUNAS="sudo -E -u scot4"
+echo "---"
+echo "--- Creating $NAMESPACE namespace in k3s as user scot4..."
+echo "---"
 
-# run rest of script as scot4 user
-sudo -i -u scot4 ~scot4/scot4/install2.sh \
-    -a $AIRFLOW \
-    -b $REPLICAS \
-    -c $TLS_CRT_FILE \
-    -d $SQLALCHEMY_DATABASE_URI \
-    -e $SURGE \
-    -k $TLS_KEY_FILE \
-    -m $S3SERVER  \
-    -n $REG_SECRET_NAME \
-    -r $REPOSERVER \
-    -s $SERVERNAME \
-    -t $REG_SECRET \
-    -v $TYPE
+$RUNAS $INSTFUNC/inst_create_k_namespace.sh $NAMESPACE
+
+if [ $? != 0 ]; then
+    echo "!!! FAILED to create $NAMESPACE namespace !!!"
+    exit 7
+fi
+
+echo "---"
+echo "--- Creating TLS secret..."
+echo "---"
+$RUNAS $INSTFUNC/inst_create_tls_secret.sh $NAMESPACE $TLS_KEY_FILE $TLS_CRT_FILE
+
+if [ $? != 0 ]; then
+    echo "    !!! FAILED to save scot4-tls !!!"
+    exit 8
+fi
+
+echo "---"
+echo "--- Applying Secrets..."
+echo "---"
+$RUNAS $INSTFUNC/inst_apply_k_secrets.sh $SQLALCHEMY_DATABASE_URI $BASE_DIR
+
+if [ $? != 0 ]; then
+    echo "    !!! FAILED to apply scot4 secrets !!!"
+    exit $? 
+fi
+
+echo "---"
+echo "--- Merging registry secrets..."
+echo "---"
+$RUNAS $INSTFUNC/inst_merge_secrets.sh $REG_SECRET $REG_SECRET_NAME $REPOSERVER $NAMESPACE
+
+if [ $? != 0 ]; then
+    echo "    !!! FAILED to merge secrets!!!"
+    exit $? 
+fi
+
+echo "---"
+echo "--- Updating values yaml..."
+echo "---"
+UPVALOPTS="$BASE_DIR $REPOSERVER $REPOPATH $SERVERNAME $AIRFLOW $S3SERVER $REPLICAS $SURGE $SQLALCHEMY_DATABASE_URI"
+echo "VALOPTS = $UPVALOPTS"
+$RUNAS $INSTFUNC/inst_update_values.sh $UPVALOPTS
+
+echo "||| WARNING: This final step of the install CAN CAUSE DATA LOSS."
+echo "|||          If you select \"clean install\" below, the SCOT4 database"
+echo "|||          will be wiped and re-initialized."
+echo "|||"
+echo "||| Option Descriptions: "
+echo "|||    clean        => appropriate for 1st time installs or when you wish to "
+echo "|||                    erase everything and start fresh. (DATA LOSS, have a backup!)"
+echo "|||"
+echo "|||    redeploy     => you just want helm to pick up changes to the chart and redeply."
+echo "|||                    (will not destroy existing database)"
+echo "|||"
+echo "|||    modify       => you which to enter the command line parameters to the helm command."
+echo "|||                    (depending on your options, you may or may not cause data loss)"
+echo "|||"
+echo "|||    quit         => stop without having helm deploy SCOT."
+
+PS3="Select deployment option > "
+select dopt in clean redeploy modify quit; do
+    case $dopt in
+        clean)
+            $RUNAS $INSTFUNC/inst_upgrade_chart.sh $HELM
+            break
+            ;;
+        redeploy)
+            ./redeploy.sh
+            break
+            ;;
+        modify)
+            $RUNAS $INSTFUNC/inst_modupgrade_chart.sh $HELM
+            break
+            ;;
+        quit)
+            exit 0
+            ;;
+        *)
+            echo "Invalid option: $REPLY"
+            ;;
+    esac
+done
+
+
+# echo ""
+# echo "If you wish to monitor their progress, enter \"yes\" below."
+#read -p "Monitor POD setup? " MONSETUP
+
+#if [ "$MONSETP" == "yes" ]; then
+#    $RUNAS $BASE_DIR/inst_monitor.sh
+#fi
+
+source ~scot4/.bashrc
+echo "---"
+echo "--- Installation Script Complete "
+echo "---"
+echo "    Deployment complete, however, it may take several minutes for "
+echo "    the pods to spin up."
+echo ""
+echo "    To monitor pod start-up, run the following commands:"
+echo "        $ source ~scot4/.bashrc"
+echo "        $ watch kubectl get pods"
+echo "    <ctrl-c> when all pods are in Running state."
+echo ""
+echo "    You may have to accept the invalid cert if you choose to create "
+echo "    a self-signed certificate."
+echo ""
+PW=$($KUBECTL -n scot4 get secret scot4-env-secrets -o jsonpath='{.data.FIRST_SUPERUSER_PASSWORD}'| base64 --decode;)
+echo "---"
+echo "--- Initial SCOT Login information"
+echo "--- "
+echo "     URL   =   https://$SERVERNAME"
+echo "    USER   =   scot-admin"
+echo "PASSWORD   =   $PW"
+
+#if [ "$DISABLEDSE" == "yes" ]; then
+#    echo "Re-enabling selinux"
+#    setenforce 1
+#fi
 
 exit 0
 

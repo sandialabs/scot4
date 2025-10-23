@@ -22,16 +22,16 @@ spec:
     metadata:
       labels:
         app: scot4-flair
-        {{- if eq .Values.scot4.force_pod_redeploy "true" }}
+        {{- if .Values.scot4.forcePodRedeploy }}
         date: "{{ now | unixEpoch }}"
         {{- end }}
     spec:
-      {{- if eq .Values.scot4.clean_flair_install "true" }}
+      {{- if .Values.scot4.cleanFlairInstall }}
       initContainers:
       - name: scot4-flair-init
         imagePullPolicy: {{ .Values.scot4.flair.imagePullPolicy }}
         image: "{{ .Values.scot4.flair.repository }}:{{ .Values.scot4.flair.tag }}"
-        command: ["/bin/bash", "-c", "./setup.pl --wipedb"]
+        command: ["/bin/bash", "-c", "ls -la /opt/flair/var; sleep 10; ls -la /opt/flair/var; ./setup.pl --wipedb;ls -la /opt/flair/var"]
         envFrom:
         - secretRef:
             name: scot4-flair-secrets
@@ -58,6 +58,49 @@ spec:
         - name: scot4-flair-opt-storage 
           mountPath: /opt/flair/var
           readOnly: false
+      {{- if (lookup "v1" "Secret" .Release.Namespace "scot4-image-pull-secret") }}
+      imagePullSecrets:
+      - name: scot4-image-pull-secret 
+      {{- end }}
+      volumes:
+      - name: scot4-flair-opt-storage 
+        persistentVolumeClaim:
+          claimName: scot4-flair-opt-pv-claim
+      securityContext:
+        runAsUser: 7777
+        runAsGroup: 7777
+        fsGroup: 7777
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: scot4-flair-minions
+spec:
+  replicas: {{ .Values.scot4.flair.numMinions }}
+  selector:
+    matchLabels:
+      app: scot4-flair-minions
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: scot4-flair-minions
+        {{- if .Values.scot4.forcePodRedeploy }}
+        date: "{{ now | unixEpoch }}"
+        {{- end }}
+    spec:
+      initContainers:
+      - name: scot4-flair-minions-wait-for-flair
+        image: "{{ .Values.scot4.flair.repository }}:{{ .Values.scot4.flair.tag }}"
+        imagePullPolicy: {{ .Values.scot4.flair.imagePullPolicy }}
+        command: ['/bin/bash', '-c', 'echo -e "Checking for the availability of Flair Server"; while [ "$(curl -s -o /dev/null -w "%{http_code}" {{ .Values.scot4.api.flairHost }}/)" != "200" ]; do sleep 5; printf "-"; done; echo -e "  >> Flair Server has started";']
+        envFrom:
+        - secretRef:
+            name: scot4-flair-secrets
+        - configMapRef:
+            name: scot4-flair-env-config
+      containers:
       - image: "{{ .Values.scot4.flair.repository }}:{{ .Values.scot4.flair.tag }}"
         imagePullPolicy: {{ .Values.scot4.flair.imagePullPolicy }}
         name: scot4-flair-minion
@@ -71,8 +114,10 @@ spec:
         - name: scot4-flair-opt-storage 
           mountPath: /opt/flair/var
           readOnly: false
+      {{- if (lookup "v1" "Secret" .Release.Namespace "scot4-image-pull-secret") }}
       imagePullSecrets:
       - name: scot4-image-pull-secret 
+      {{- end }}
       volumes:
       - name: scot4-flair-opt-storage 
         persistentVolumeClaim:

@@ -27,7 +27,7 @@ spec:
     metadata:
       labels:
         app: scot4-frontend
-        {{- if eq .Values.scot4.force_pod_redeploy "true" }}
+        {{- if .Values.scot4.forcePodRedeploy }}
         date: "{{ now | unixEpoch }}"
         {{- end }}
     spec:
@@ -41,5 +41,7 @@ spec:
         ports:
         - containerPort: 8080
           name: scot4-frontend
+      {{- if (lookup "v1" "Secret" .Release.Namespace "scot4-image-pull-secret") }}
       imagePullSecrets:
       - name: scot4-image-pull-secret 
+      {{- end }}

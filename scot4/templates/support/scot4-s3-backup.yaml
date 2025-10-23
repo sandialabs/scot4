@@ -1,4 +1,4 @@
-{{- if eq .Values.scot4.s3.backup_enabled "true" }}
+{{- if .Values.scot4.s3.backup_enabled }}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -19,9 +19,9 @@ kind: CronJob
 metadata:
   name: scot4-s3-backup
 spec:
-  {{- if eq .Values.scot4.s3.testMode "true" }}
+  {{- if .Values.scot4.s3.testMode }}
   schedule: "*/5 * * * *" 
-  {{- else if eq .Values.scot4.s3.testMode "false" }}
+  {{- else }}
   schedule: "0 0 * * *"
   {{- end }}
   successfulJobsHistoryLimit: 0
@@ -40,12 +40,12 @@ spec:
             envFrom:
             - secretRef:
                 name: scot4-inbox-s3-backup-secrets
-            {{- if eq .Values.scot4.s3.testMode "true" }}
+            {{- if .Values.scot4.s3.testMode }}
             command:
             - /bin/sh
             - c
             - aws s3 ls --endpoint-url={{ .Values.scot4.s3.endpointURL }}
-            {{- else if eq .Values.scot4.s3.testMode "false" }}
+            {{- else }}
             command:
             - /bin/sh
             - -c
@@ -54,8 +54,10 @@ spec:
             volumeMounts:
             - name: scot4-inbox-s3-backup-data-storage
               mountPath: /mnt/backup
+          {{- if (lookup "v1" "Secret" .Release.Namespace "scot4-image-pull-secret") }}
           imagePullSecrets:
           - name: scot4-image-pull-secret
+          {{- end }}
           volumes:
           - name: scot4-inbox-s3-backup-data-storage
             persistentVolumeClaim:

@@ -31,7 +31,8 @@ def main():
         sqlalchemy_uri = sys.argv[1]
 
     # Get path of current file so we can find the secret placeholders
-    main_path = os.path.dirname(f"{os.getcwd()}/{sys.argv[0]}")
+    # main_path = os.path.dirname(f"{os.getcwd()}/{sys.argv[0]}")
+    main_path = "/home/scot4/scot4"
 
     # Path of secret files we are modifying
     env_sec_path = f"{main_path}/scot4/secret-skeletons/secrets.yaml"

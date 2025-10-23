@@ -1,4 +1,4 @@
-{{- if eq .Values.scot4.inbox.alertgroup.enabled "true" }}
+{{- if .Values.scot4.inbox.alertgroup.enabled}}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -38,12 +38,12 @@ spec:
                 name: scot4-inbox-alerts-env-config
             - secretRef:
                 name: scot4-inbox-alerts-secrets
-            {{- if eq .Values.scot4.inbox.common.testMode "true" }}
+            {{- if .Values.scot4.inbox.common.testMode }}
             command:
             - /bin/sh
             - -c
             - /opt/scot4-inbox/bin/inbox.pl -test
-            {{- else if eq .Values.scot4.inbox.common.testMode "false" }}
+            {{- else }}
             command:
             - /bin/sh
             - -c
@@ -52,8 +52,10 @@ spec:
             volumeMounts:
             - name: scot4-inbox-alerts-data-storage
               mountPath: /opt/scot4-inbox/var
+          {{- if (lookup "v1" "Secret" .Release.Namespace "scot4-image-pull-secret") }}
           imagePullSecrets:
           - name: scot4-image-pull-secret
+          {{- end }}
           volumes:
           - name: scot4-inbox-alerts-data-storage
             persistentVolumeClaim:

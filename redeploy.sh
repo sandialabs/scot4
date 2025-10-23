@@ -5,6 +5,6 @@
     --install \
     --reset-values \
     -f OS_values.yaml \
-    --set-string scot4.clean_flair_install="false" \
-    --set-string scot4.wipe_api_database="false" \
+    --set scot4.cleanFlairInstall=false \
+    --set scot4.wipeApiDatabase=false \
     scot4 ./scot4

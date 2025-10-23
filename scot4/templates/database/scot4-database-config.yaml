@@ -1,4 +1,4 @@
-{{- if eq .Values.scot4.api.internalDB "true" }}
+{{- if .Values.scot4.api.internalDB }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -17,5 +17,5 @@ data:
     disable_log_bin
     bind-address = 0.0.0.0
     explicit_defaults_for_timestamp=1
-    sql_mode="NO_ENGINE_SUBSTITUTION" 
+    sql_mode="NO_ENGINE_SUBSTITUTION"
  {{- end }}

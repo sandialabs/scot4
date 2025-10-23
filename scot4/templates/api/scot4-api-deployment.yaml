@@ -41,12 +41,12 @@ spec:
     metadata:
       labels:
         app: scot4-api
-        {{- if eq .Values.scot4.force_pod_redeploy "true" }}
+        {{- if .Values.scot4.forcePodRedeploy }}
         date: "{{ now | unixEpoch }}"
         {{- end }}
     spec:
       initContainers:
-      {{- if eq .Values.scot4.api.internalDB "true" }}
+      {{- if .Values.scot4.api.internalDB }}
       - name: scot4-wait-for-db
         image: "{{ .Values.scot4.api.repository }}:{{ .Values.scot4.api.tag }}"
         imagePullPolicy: {{ .Values.scot4.api.imagePullPolicy }}
@@ -58,7 +58,7 @@ spec:
                 name: scot4-env-secrets
                 key: ROOT_DB_PASSWORD
       {{- end }}
-      {{- if eq .Values.scot4.rebuild_api_database_tables "true" }}
+      {{- if .Values.scot4.rebuildApiDatabaseTables }}
       - name: scot4-api-create-new-tables
         imagePullPolicy: {{ .Values.scot4.api.imagePullPolicy }}
         image: "{{ .Values.scot4.api.repository }}:{{ .Values.scot4.api.tag }}"
@@ -107,5 +107,7 @@ spec:
         runAsUser: 3000
         runAsGroup: 3000
         fsGroup: 3000
+      {{- if (lookup "v1" "Secret" .Release.Namespace "scot4-image-pull-secret") }}
       imagePullSecrets:
       - name: scot4-image-pull-secret 
+      {{- end }}

@@ -27,18 +27,20 @@ scot4:
   common:
     noProxy: "localhost,scot4-api-service,scot4-search,scot4-flair-service"
 
-  # needs to be "true" for first install. after first install will clean and rebuild flair's DBs
-  clean_flair_install: "false"
+  # needs to be true for first install. after first install will clean and rebuild flair's DBs
+  cleanFlairInstall: false
   # will drop tables, indices, and data from API DB and rebuild. works for both internal and remote DB connection
-  wipe_api_database: "false"
+  wipeApiDatabase: false
+  # will drop meilisearch indexes and rebuild from the data in the api database
+  indexSearchDatabase: false
   # only tries to rebuild the tables without dropping data or schema. useful during development
-  rebuild_api_database_tables: "false"
+  rebuildApiDatabaseTables: false
   # mechanism to override k8s's attempt to not redeploy templates that haven't changed
   # useful when using images tagged "latest" as k8s does not check for new "latest" on deploy
-  force_pod_redeploy: "false"
+  forcePodRedeploy: false
 
   redirect:
-    enabled: "false"
+    enabled: false
     redirectFrom: "scot.example.com"
     redirectTlsSecretName: "scot4-redirect-tls"
 
@@ -55,18 +57,18 @@ scot4:
     storageCapacity: "30Gi"
 
   api:
-    # set internalDB to "true" to spin up local mysql DB in helm deployment
-    internalDB: "false"
-    # set fakedata to "true" to populate SCOT4 with faker data
-    fakedata: "false"
+    # set internalDB to true to spin up local mysql DB in helm deployment
+    internalDB: false
+    # set fakedata to true to populate SCOT4 with faker data
+    fakedata: false
     # api container image repository path
     repository: ghcr.io/sandialabs/scot4-api
     # api container image tag
-    tag: "4.4.3"
+    tag: "4.4.4"
     # api util container image repository path
     utilRepository: ghcr.io/sandialabs/scot4-api-util
     # api util container image tag
-    utilTag: "4.4.3"
+    utilTag: "4.4.4"
     # first superuser's email when creating account
     firstSuperUserEmail: "scot-admin@example.com"
     # first superuser's username
@@ -122,6 +124,9 @@ scot4:
     apiDatabaseUser: "scot4-db-user"
     storageClassName: "local-path"
     storageCapacity: "5Gi"
+    # How many minion pods to spin up
+    numMinions: 2
+    # How many jobs each minion can take
     numMinionWorkers: 4
     imagePullPolicy: "Always"
     mojoReverseProxy: "/flair-ui"
@@ -159,11 +164,11 @@ scot4:
       msvFilterDefinitions: "/opt/scot/var/scot4_msv_filters"
       msvDbmFile: "/opt/scot/var/seen_msgids"
       storageCapacity: "20Gi"
-      testMode: "true"
+      testMode: true
       storageClassName: "local-path"
 
     alertgroup:
-      enabled: "false"
+      enabled: false
       logLevel: "DEBUG"
       logFile: "/opt/scot4-inbox/var/log/alert.log"
       imapServername: "mail.example.com"
@@ -176,7 +181,7 @@ scot4:
       permittedSenders: '*'
 
     dispatch:
-      enabled: "false"
+      enabled: false
       logLevel: "DEBUG"
       logFile: "/opt/scot4-inbox/var/log/dispatch.log"
       imapServername: "mail.example.com"
@@ -189,7 +194,7 @@ scot4:
       permittedSenders: '*'
 
     vulnfeed:
-      enabled: "false"
+      enabled: false
       logLevel: "DEBUG"
       logFile: "/opt/scot4-inbox/var/log/vulnfeed.log"
       imapServername: "mail.example.com"
@@ -202,7 +207,7 @@ scot4:
       permittedSenders: '*'
 
     event:
-      enabled: "false"
+      enabled: false
       logLevel: "DEBUG"
       logFile: "/opt/scot4-inbox/var/log/event.log"
       imapServername: "mail.example.com"
@@ -215,7 +220,7 @@ scot4:
       permittedSenders: '*'
 
   s3:
-    backup_enabled: "false"
+    backup_enabled: false
     storageCapacity: "200Gi"
     storageClassName: "local-path"
     image:
@@ -223,5 +228,5 @@ scot4:
       tag: "latest"
     imagePullPolicy: "Always"
     endpointURL: "https://scot4.s3.example.com"
-    testMode: "true"
+    testMode: true
     s3Address: "s3://scot4"

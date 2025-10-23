@@ -1,4 +1,4 @@
-{{- if and (ne .Values.scot4.api.internalDB "true") (eq .Values.scot4.wipe_api_database "true") }}
+{{- if and (not .Values.scot4.api.internalDB) (.Values.scot4.wipeApiDatabase) }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -43,7 +43,7 @@ spec:
             name: scot4-api-hook-env-config
         - secretRef:
             name: scot4-env-secrets
-      {{- if eq .Values.scot4.api.fakedata "true" }}
+      {{- if .Values.scot4.api.fakedata }}
       containers:
       - name: scot4-api-fill-db-with-fake-data
         imagePullPolicy: {{ .Values.scot4.api.imagePullPolicy }}
@@ -56,6 +56,8 @@ spec:
             name: scot4-env-secrets
       {{- end }}
       restartPolicy: Never
+      {{- if (lookup "v1" "Secret" .Release.Namespace "scot4-image-pull-secret") }}
       imagePullSecrets:
       - name: scot4-image-pull-secret
+      {{- end }}
 {{- end }}

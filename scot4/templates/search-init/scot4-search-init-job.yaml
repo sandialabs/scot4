@@ -1,13 +1,25 @@
+{{- if or (.Values.scot4.wipeApiDatabase) (.Values.scot4.indexSearchDatabase) }}
 apiVersion: batch/v1
 kind: Job
 metadata:
   name: scot4-search-init
 spec:
+  # ttlSecondsAfterFinished: 100
   template:
     spec:
+      initContainers:
+      - name: scot4-search-wait-for-api
+        image: "{{ .Values.scot4.api.utilRepository }}:{{ .Values.scot4.api.utilTag }}"
+        imagePullPolicy: {{ .Values.scot4.api.imagePullPolicy }}
+        command: ['/bin/bash', '-c', 'echo -e "Checking for the availability of API Server"; while [ "$(curl -s -o /dev/null -w "%{http_code}" {{ .Values.scot4.flair.scot_api_uri_root }}/health/)" != "200" ]; do sleep 5; printf "-"; done; echo -e "  >> SCOT4 API Server has started";']
+        envFrom:
+        - configMapRef:
+            name: scot4-api-env-config
+        - secretRef:
+            name: scot4-env-secrets
       containers:
       - name: scot4-search-init
-        imagePullPolicy: "Always"
+        imagePullPolicy: {{ .Values.scot4.api.imagePullPolicy }}
         image: "{{ .Values.scot4.api.utilRepository }}:{{ .Values.scot4.api.utilTag }}"
         command: ["python", "./tests/utils/index_search.py"]
         envFrom:
@@ -16,5 +28,8 @@ spec:
         - secretRef:
             name: scot4-env-secrets
       restartPolicy: Never
+      {{- if (lookup "v1" "Secret" .Release.Namespace "scot4-image-pull-secret") }}
       imagePullSecrets:
       - name: scot4-image-pull-secret 
+      {{- end }}
+{{- end }}
