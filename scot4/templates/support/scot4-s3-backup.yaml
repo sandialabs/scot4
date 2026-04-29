@@ -24,8 +24,10 @@ spec:
   {{- else }}
   schedule: "0 0 * * *"
   {{- end }}
-  successfulJobsHistoryLimit: 0
-  failedJobsHistoryLimit: 3
+{{- $overrides := .Values.scot4.cronjobs.specOverrides | default dict -}}
+{{- if $overrides }}
+{{ toYaml $overrides | nindent 2 }}
+{{- end }}
   jobTemplate:
     metadata:
       labels:

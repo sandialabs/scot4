@@ -25,7 +25,7 @@ meilisearch:
 
 scot4:
   common:
-    noProxy: "localhost,scot4-api-service,scot4-search,scot4-flair-service"
+    noProxy: "localhost,scot4-api-service,scot4-search,scot4-flair-service,scot4-basic-enrich-service"
 
   # needs to be true for first install. after first install will clean and rebuild flair's DBs
   cleanFlairInstall: false
@@ -38,6 +38,9 @@ scot4:
   # mechanism to override k8s's attempt to not redeploy templates that haven't changed
   # useful when using images tagged "latest" as k8s does not check for new "latest" on deploy
   forcePodRedeploy: false
+  # run helper script to replace all spaces in tags and sources
+  # necessary for 4.5.2 release
+  fixApiTagSources: false
 
   redirect:
     enabled: false
@@ -64,11 +67,11 @@ scot4:
     # api container image repository path
     repository: ghcr.io/sandialabs/scot4-api
     # api container image tag
-    tag: "4.4.4"
+    tag: "4.6.0"
     # api util container image repository path
     utilRepository: ghcr.io/sandialabs/scot4-api-util
     # api util container image tag
-    utilTag: "4.4.4"
+    utilTag: "4.6.0"
     # first superuser's email when creating account
     firstSuperUserEmail: "scot-admin@example.com"
     # first superuser's username
@@ -99,14 +102,25 @@ scot4:
     numReplicas: 16
     # number of pods that can be added when a helm upgrade occurs
     maxSurge: 8
+    # Protocol for communicating with nats service, should be nats for now
+    natsProtocol: "nats"
+    # Service address of nats unless using remote hosted instance
+    natsHost: "nats"
+    # Port of nats
+    natsPort: 4222
+    # Whether or not to start the MCP server
+    mcpServerEnabled: false
     storageClassName: "local-path"
     storageCapacity: "30Gi"
+    dbConnectionPoolSize: 6
+    dbConnectionPoolOverflow: 10
+    gameIgnoreUsers: 'scot-admin'
 
   frontend:
     # frontend container image repository path
     repository: ghcr.io/sandialabs/scot4-web-app
     # frontend container image tag
-    tag: "4.4.2"
+    tag: "4.6.0"
     # url where the frontend will be accessible
     externalHostName: "scot4.example.com"
     # name of k8s secret that holds tls crt and key, should not need to change
@@ -118,7 +132,7 @@ scot4:
     # flair container image repository path
     repository: ghcr.io/sandialabs/scot4-flair
     # flair container image tag
-    tag: "4.4.2"
+    tag: "4.6.0"
     containerPort: 3001
     apiDatabaseName: "scot4"
     apiDatabaseUser: "scot4-db-user"
@@ -145,11 +159,36 @@ scot4:
     flair_group: "flair"
     db_uri: "file:/opt/flair/var/flair.db"
     db_migration: "/opt/flair/etc/flair.sqlite.sql"
+    db_mysql_migration: "/opt/flair/etc/flair.mysql.sql"
     db_file: "/opt/flair/var/flair.db"
     core_regexes: "/opt/flair/etc/core_regexes.pl"
     udef_regexes: "/opt/flair/etc/udef_regexes.pl"
     scot_api_insecure_ssl: 0
     scot_api_uri_root: "http://scot4-api-service:8000/api/v1"
+    seLinuxLevel: ""
+    database:
+      repository: mysql
+      tag: "8.0"
+      containerPort: 3306
+      databaseRootHost: "%"
+      databaseName: "flair"
+      databaseUser: "flair"
+      storageClassName: "local-path"
+      storageCapacity: "30Gi"
+
+  basicEnrich:
+    enabled: false
+    # basic enrich container image repository path
+    repository: ghcr.io/sandialabs/scot4-basic-enrich
+    # basic enrich container image tag
+    tag: "latest"
+    containerPort: 8000
+    storageClassName: "local-path"
+    storageCapacity: "5Gi"
+    numReplicas: 1
+    maxSurge: 1
+    imagePullPolicy: "Always"
+    mmdbFile: "GeoIP2-Country.mmdb"
 
   inbox:
     common:
@@ -218,6 +257,15 @@ scot4:
       inputQueue: "event"
       clientClass: 'Scot::Inbox::Imap'
       permittedSenders: '*'
+
+  # This section is injected into all cronjobs
+  # Mostly for maintenance so jobs don't pile up in the history
+  cronjobs:
+    specOverrides:
+      successfulJobsHistoryLimit: 1
+      failedJobsHistoryLimit: 3
+      concurrencyPolicy: Forbid
+      startingDeadlineSeconds: 180
 
   s3:
     backup_enabled: false

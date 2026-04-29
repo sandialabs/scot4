@@ -476,6 +476,7 @@ swapoff -a
 sed -e '/swap/ s/^#*/#/' -i /etc/fstab
 
 
+
 echo "---"
 echo "--- checking selinux status"
 echo "---"
@@ -484,16 +485,17 @@ SE_ENABLED=$(sestatus | grep 'SELinux status' | awk '{print $3}')
 if [ "$SE_ENABLED" == "enabled" ]; then
     echo "    SELinux is enabled"
     SELINUX="--selinux"
-    ENFORCING=$(getenforce)
-    if [ "$ENFORCING" == "Enforcing" ];then
-        echo "    SELinux in enforcing mode, setting to permissive mode..."
-        setenforce 0
-        sestatus
-        DISABLEDSE="yes"
-    else
-        echo "    SELinux in permissive mode"
-        DISABLEDSE="no"
-    fi
+    # no longer necessary with helm fix
+    #ENFORCING=$(getenforce)
+    #if [ "$ENFORCING" == "Enforcing" ];then
+      #  echo "    SELinux in enforcing mode, setting to permissive mode..."
+      #  setenforce 0
+    #    sestatus
+      #  DISABLEDSE="yes"
+    #else
+    #    echo "    SELinux in permissive mode"
+    #    DISABLEDSE="no"
+    #fi
 else
     echo "    SELinux disabled"
     SELINUX=""
@@ -754,7 +756,7 @@ echo "|||"
 echo "|||    redeploy     => you just want helm to pick up changes to the chart and redeply."
 echo "|||                    (will not destroy existing database)"
 echo "|||"
-echo "|||    modify       => you which to enter the command line parameters to the helm command."
+echo "|||    modify       => you wish to enter the command line parameters to the helm command."
 echo "|||                    (depending on your options, you may or may not cause data loss)"
 echo "|||"
 echo "|||    quit         => stop without having helm deploy SCOT."

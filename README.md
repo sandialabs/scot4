@@ -1,3 +1,5 @@
+![SCOT LOGO](https://github.com/sandialabs/scot4/scot.png)
+
 ## SCOT 4 Meta Repository 
 
 For documentation about SCOT 4 please see: https://sandialabs.github.io/scot4-docs/index.html

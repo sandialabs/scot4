@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: scot4-flair-db-env-config
+data:
+  MYSQL_ROOT_HOST: "{{ .Values.scot4.flair.database.databaseRootHost }}"
+  MYSQL_DATABASE: {{ .Values.scot4.flair.database.databaseName }}
+  MYSQL_USER: {{ .Values.scot4.flair.database.databaseUser }}
+  NO_PROXY: {{ .Values.scot4.common.noProxy }}

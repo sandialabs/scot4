@@ -1,0 +1,109 @@
+{{- if .Values.scot4.basicEnrich.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: scot4-basic-enrich-service
+spec:
+  ports:
+  - port: {{ .Values.scot4.basicEnrich.containerPort }}
+  selector:
+    app: scot4-basic-enrich
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: scot4-basic-enrich-pv-claim
+  annotations:
+    volumeType: local
+    helm.sh/resource-policy: "keep"
+spec:
+  storageClassName: {{ .Values.scot4.basicEnrich.storageClassName }}
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.scot4.basicEnrich.storageCapacity }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: scot4-basic-enrich
+spec:
+  replicas: {{ .Values.scot4.basicEnrich.numReplicas }}
+  selector:
+    matchLabels:
+      app: scot4-basic-enrich
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: {{ .Values.scot4.basicEnrich.maxSurge }}
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: scot4-basic-enrich
+        {{- if .Values.scot4.forcePodRedeploy }}
+        date: "{{ now | unixEpoch }}"
+        {{- end }}
+    spec:
+      containers:
+      - image: "{{ .Values.scot4.basicEnrich.repository }}:{{ .Values.scot4.basicEnrich.tag }}"
+        imagePullPolicy: {{ .Values.scot4.basicEnrich.imagePullPolicy }}
+        name: scot4-basic-enrich
+        envFrom:
+        - configMapRef:
+            name: scot4-basic-enrich-env-config
+        env:
+        - name: BASIC_AUTH_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: scot4-env-secrets
+              key: ENRICHMENT_PASSWORD
+        - name: SCOT4_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: scot4-env-secrets
+              key: FIRST_SUPERUSER_APIKEY
+        command: ["fastapi", "run", "app/main.py", "--host", "0.0.0.0", "--port", "{{ .Values.scot4.basicEnrich.containerPort }}"]
+        volumeMounts:
+        - name: scot4-basic-enrich-storage 
+          mountPath: /var/mmdb
+          readOnly: false
+        ports:
+        - containerPort: {{ .Values.scot4.basicEnrich.containerPort }}
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: {{ .Values.scot4.basicEnrich.containerPort }}
+          initialDelaySeconds: 30
+          timeoutSeconds: 3
+          periodSeconds: 10
+          failureThreshold: 10
+        resources:
+          requests:
+            memory: "1Gi"
+          limits:
+            memory: "2Gi"
+      volumes:
+      - name: scot4-basic-enrich-storage 
+        persistentVolumeClaim:
+          claimName: scot4-basic-enrich-pv-claim
+      securityContext:
+        runAsUser: 3000
+        runAsGroup: 3000
+        fsGroup: 3000
+      {{- if (lookup "v1" "Secret" .Release.Namespace "scot4-image-pull-secret") }}
+      imagePullSecrets:
+      - name: scot4-image-pull-secret 
+      {{- end }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: scot4-basic-enrich-env-config
+data:
+  BASIC_AUTH_USERNAME: "{{ .Values.scot4.api.enrichmentUsername }}"
+  MMDB_PATH: "/var/mmdb/{{ .Values.scot4.basicEnrich.mmdbFile }}"
+  NO_PROXY: {{ .Values.scot4.common.noProxy }}
+  no_proxy: {{ .Values.scot4.common.noProxy }}
+{{- end }}

@@ -19,3 +19,11 @@ data:
   REQUESTS_CA_BUNDLE: "/etc/ssl/certs/ca-certificates.crt"
   ENV: {{ .Values.scot4.api.deploymentEnvironment }}
   NUM_TRUSTED_PROXIES: "1"
+  DB_CONNECTION_POOL_SIZE: "{{ .Values.scot4.api.dbConnectionPoolSize | toString }}"
+  DB_CONNECTION_POOL_OVERFLOW: "{{ .Values.scot4.api.dbConnectionPoolOverflow | toString }}"
+  NATS_PROTOCOL: {{ .Values.scot4.api.natsProtocol }}
+  NATS_HOST: {{ .Values.scot4.api.natsHost }}
+  NATS_PORT: "{{ .Values.scot4.api.natsPort }}"
+  MCP_SERVER_ENABLED: "{{ .Values.scot4.api.mcpServerEnabled }}"
+  GAME_IGNORE_USERS: "{{ .Values.scot4.api.gameIgnoreUsers }}"
+  FASTMCP_STATELESS_HTTP: "true"

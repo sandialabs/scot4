@@ -69,6 +69,17 @@ spec:
         - secretRef:
             name: scot4-env-secrets
       {{- end }}
+      {{- if .Values.scot4.fixApiTagSources }}
+      - name: scot4-api-fix-tag-sources
+        imagePullPolicy: {{ .Values.scot4.api.imagePullPolicy }}
+        image: "{{ .Values.scot4.api.repository }}:{{ .Values.scot4.api.tag }}"
+        command: ["python", "./app/db/init_db.py", "--fix_tag_sources"]
+        envFrom:
+        - configMapRef:
+            name: scot4-api-env-config
+        - secretRef:
+            name: scot4-env-secrets
+      {{- end }}
       containers:
       - image: "{{ .Values.scot4.api.repository }}:{{ .Values.scot4.api.tag }}"
         imagePullPolicy: {{ .Values.scot4.api.imagePullPolicy }}
