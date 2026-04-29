@@ -5,6 +5,7 @@ import sys
 import os 
 import os.path
 import uuid
+import base64
 
 # Help with YAML formatting comes from here
 #https://reorx.com/blog/python-yaml-tips/
@@ -19,6 +20,13 @@ def gen_secret(sec_len = 20):
     # use secrets engine to choose sec_len amount from valid_chars
     # Follows example from here https://docs.python.org/3/library/secrets.html#recipes-and-best-practices
     return ''.join(secrets.choice(valid_chars) for i in range(sec_len))
+
+def gen_b64_secret(sec_len = 20):
+    unencoded_secret = gen_secret(sec_len)
+    unencoded_bytes = unencoded_secret.encode('utf-8')
+    b64_string = base64.b64encode(unencoded_bytes).decode('utf-8')
+
+    return b64_string
 
 def gen_apikey():
     # For API Keys, just use uuid
@@ -65,6 +73,8 @@ def main():
         # Use UUIDs to keep persistent with SCOT's API key gen
         elif item == "FIRST_SUPERUSER_APIKEY" or item == "FLAIR_API_KEY":
             env_sec["stringData"][item] = gen_apikey()
+        elif item == "MCP_OAUTH_SECRET_KEY":
+            env_sec["stringData"][item] = gen_b64_secret(32)
         else:
             env_sec["stringData"][item] = gen_secret()
 
@@ -79,6 +89,11 @@ def main():
 
     # Flair Admin pass can be a secret
     flair_sec["stringData"]["S4FLAIR_ADMIN_PASS"] = gen_secret()
+
+    # Flair database secrets
+    flair_sec["stringData"]["ROOT_DB_PASSWORD"] = gen_secret()
+    flair_sec["stringData"]["FLAIR_DB_PASSWORD"] = gen_secret()
+    flair_sec["stringData"]["S4FLAIR_MYSQL_URI"] = f"mysql://flair:{flair_sec["stringData"]["FLAIR_DB_PASSWORD"]}@scot4-flair-db-service/flair"
 
     # The following secrets need to match secrets for SCOT API
     flair_sec["stringData"]["S4FLAIR_SCOT_API_KEY"] = env_sec["stringData"]["FIRST_SUPERUSER_APIKEY"]

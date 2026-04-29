@@ -51,6 +51,7 @@ spec:
         - name: scot4-flair-opt-storage 
           mountPath: /opt/flair/var
       {{- end }}
+      {{- if not .Values.scot4.cleanFlairInstall }}
       - name: scot4-flair-db-migration
         imagePullPolicy: {{ .Values.scot4.flair.imagePullPolicy }}
         image: "{{ .Values.scot4.flair.repository }}:{{ .Values.scot4.flair.tag }}"
@@ -63,6 +64,7 @@ spec:
         volumeMounts:
         - name: scot4-flair-opt-storage 
           mountPath: /opt/flair/var
+      {{- end }}
       containers:
       - image: "{{ .Values.scot4.flair.repository }}:{{ .Values.scot4.flair.tag }}"
         imagePullPolicy: {{ .Values.scot4.flair.imagePullPolicy }}
