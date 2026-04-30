@@ -93,7 +93,7 @@ scot4:
     # port to expose to api service
     containerPort: 8000
     # image pull policy for k8s
-    imagePullPolicy: "Always"
+    imagePullPolicy: "IfNotPresent"
     # url where the api will be accessible
     externalApiUri: "https://scot4.example.com/api/v1"
     # For a production-like deployment, change this value to "PROD"
@@ -115,6 +115,8 @@ scot4:
     dbConnectionPoolSize: 6
     dbConnectionPoolOverflow: 10
     gameIgnoreUsers: 'scot-admin'
+    memoryRequests: "4Gi"
+    memoryLimits: "8Gi"
 
   frontend:
     # frontend container image repository path
@@ -126,7 +128,7 @@ scot4:
     # name of k8s secret that holds tls crt and key, should not need to change
     tlsSecretName: "scot4-tls"
     # image pull policy for k8s
-    imagePullPolicy: "Always"
+    imagePullPolicy: "IfNotPresent"
 
   flair:
     # flair container image repository path
@@ -142,7 +144,7 @@ scot4:
     numMinions: 2
     # How many jobs each minion can take
     numMinionWorkers: 4
-    imagePullPolicy: "Always"
+    imagePullPolicy: "IfNotPresent"
     mojoReverseProxy: "/flair-ui"
     version: 1.1
     mode: "production"
@@ -187,7 +189,7 @@ scot4:
     storageCapacity: "5Gi"
     numReplicas: 1
     maxSurge: 1
-    imagePullPolicy: "Always"
+    imagePullPolicy: "IfNotPresent"
     mmdbFile: "GeoIP2-Country.mmdb"
 
   inbox:
@@ -196,7 +198,7 @@ scot4:
       repository: ghcr.io/sandialabs/scot4-inbox
       # inbox processor container image tag
       tag: "4.4.6"
-      imagePullPolicy: "Always"
+      imagePullPolicy: "IfNotPresent"
       imapSslVerify: 1
       scotApiSslVerify: 1
       scotApiUriRoot: "http://scot4-api-service:8000/api/v1"
@@ -274,7 +276,7 @@ scot4:
     image:
       repository: "amazon/aws-cli"
       tag: "latest"
-    imagePullPolicy: "Always"
+    imagePullPolicy: "IfNotPresent"
     endpointURL: "https://scot4.s3.example.com"
     testMode: true
     s3Address: "s3://scot4"

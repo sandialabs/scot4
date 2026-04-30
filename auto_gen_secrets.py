@@ -93,7 +93,7 @@ def main():
     # Flair database secrets
     flair_sec["stringData"]["ROOT_DB_PASSWORD"] = gen_secret()
     flair_sec["stringData"]["FLAIR_DB_PASSWORD"] = gen_secret()
-    flair_sec["stringData"]["S4FLAIR_MYSQL_URI"] = f"mysql://flair:{flair_sec["stringData"]["FLAIR_DB_PASSWORD"]}@scot4-flair-db-service/flair"
+    flair_sec["stringData"]["S4FLAIR_MYSQL_URI"] = f"mariadb://flair:{flair_sec["stringData"]["FLAIR_DB_PASSWORD"]}@scot4-flair-db-service/flair"
 
     # The following secrets need to match secrets for SCOT API
     flair_sec["stringData"]["S4FLAIR_SCOT_API_KEY"] = env_sec["stringData"]["FIRST_SUPERUSER_APIKEY"]

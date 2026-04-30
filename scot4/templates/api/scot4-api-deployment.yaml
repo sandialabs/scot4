@@ -107,9 +107,9 @@ spec:
           failureThreshold: 10
         resources:
           requests:
-            memory: "4096Mi"
+            memory: {{ .Values.scot4.api.memoryRequests }}
           limits:
-            memory: "8192Mi"
+            memory: {{ .Values.scot4.api.memoryLimits }}
       volumes:
       - name: scot4-api-files-storage 
         persistentVolumeClaim:

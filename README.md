@@ -1,4 +1,4 @@
-![SCOT LOGO](https://github.com/sandialabs/scot4/scot.png)
+![SCOT LOGO](./scot.png)
 
 ## SCOT 4 Meta Repository 
 
