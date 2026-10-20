@@ -1,0 +1,26 @@
+{{- if and .Values.scot4.api.internalDB .Values.scot4.database.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: scot4-database-ingress
+spec:
+  podSelector:
+    matchLabels:
+      app: scot4-db
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: scot4-api
+        - podSelector:
+            matchLabels:
+              app: scot4-api-db-management
+        - podSelector:
+            matchLabels:
+              app: scot4-search-init
+      ports:
+        - protocol: TCP
+          port: {{ .Values.scot4.database.containerPort }}
+{{- end }}

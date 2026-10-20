@@ -7,13 +7,10 @@ meilisearch:
     repository: getmeili/meilisearch
     tag: v1.10.3
   environment:
-    MEILI_NO_ANALYTICS: false
+    MEILI_NO_ANALYTICS: true
     MEILI_ENV: production
-  envFrom:
-    - secretRef:
-        name: scot4-env-secrets
-  auth: 
-    existingMasterKeySecret: "scot4-env-secrets"
+  auth:
+    existingMasterKeySecret: "scot4-meilisearch-secrets"
   persistence:
     enabled: true
     storageClass: "local-path"
@@ -22,6 +19,59 @@ meilisearch:
       helm.sh/resource-policy: "keep"
   nameOverride: "scot4-search"
   fullnameOverride: "scot4-search"
+
+# Values passed directly to the official NATS subchart.
+# Keep these aligned with scot4.nats.connection and scot4.nats.auth.
+# Passwords are injected into the NATS pod from an existing Kubernetes Secret
+# and referenced from the NATS config via environment-variable interpolation.
+nats:
+  container:
+    env:
+      AUTH_CALLOUT_PASSWORD:
+        valueFrom:
+          secretKeyRef:
+            name: scot4-nats-secrets
+            key: AUTH_CALLOUT_PASSWORD
+      API_SERVICE_PASSWORD:
+        valueFrom:
+          secretKeyRef:
+            name: scot4-nats-secrets
+            key: API_SERVICE_PASSWORD
+      FLAIR_SERVICE_PASSWORD:
+        valueFrom:
+          secretKeyRef:
+            name: scot4-nats-secrets
+            key: FLAIR_SERVICE_PASSWORD
+      NATS_AUTH_ISSUER_PUBLIC_KEY:
+        valueFrom:
+          secretKeyRef:
+            name: scot4-nats-secrets
+            key: NATS_AUTH_ISSUER_PUBLIC_KEY
+  config:
+    websocket:
+      enabled: true
+    merge:
+      authorization:
+        users:
+          - user: auth_callout_service
+            password: << $AUTH_CALLOUT_PASSWORD >>
+          - user: api_service
+            password: << $API_SERVICE_PASSWORD >>
+            permissions:
+              publish:
+                - "scot.irelement.>"
+                - "scot.notification.>"
+              subscribe:
+                - "scot.irelement.>"
+                - "scot.notification.>"
+          - user: flair_service
+            password: << $FLAIR_SERVICE_PASSWORD >>
+            permissions:
+              publish:
+                - "FLAIR.work.>"
+              subscribe:
+                - "scot.irelement.>"
+                - "FLAIR.work.>"
 
 scot4:
   common:
@@ -42,16 +92,99 @@ scot4:
   # necessary for 4.5.2 release
   fixApiTagSources: false
 
+  search:
+    # Helm creates and retains the dedicated master-key Secret. Set false when
+    # meilisearch.auth.existingMasterKeySecret is managed outside this chart.
+    createMasterKeySecret: true
+    # Stable, non-secret UID used to idempotently retrieve the API's scoped key.
+    apiKeyUid: "8c481572-03d7-5f91-87eb-e80bd3eb5ca8"
+    apiKeyFile: "/run/scot-secrets/search-api-key"
+    keyProvisioningMaxAttempts: 120
+    keyProvisioningRetrySeconds: 5
+    networkPolicy:
+      # Restrict Meilisearch ingress to SCOT API and search-maintenance pods.
+      enabled: true
+
   redirect:
     enabled: false
     redirectFrom: "scot.example.com"
     redirectTlsSecretName: "scot4-redirect-tls"
 
+  nats:
+    connection:
+      protocol: "nats"
+      host: "scot4-nats"
+      port: 4222
+    websocket:
+      enabled: true
+      serviceName: "scot4-nats"
+      servicePort: 8080
+      ingressPath: "/nats"
+      publicUrl: ""
+    auth:
+      existingSecretName: "scot4-nats-secrets"
+      secretKeys:
+        authCalloutPassword: "AUTH_CALLOUT_PASSWORD"
+        apiServicePassword: "API_SERVICE_PASSWORD"
+        flairServicePassword: "FLAIR_SERVICE_PASSWORD"
+        authIssuerSeed: "NATS_AUTH_ISSUER_SEED"
+        authIssuerPublicKey: "NATS_AUTH_ISSUER_PUBLIC_KEY"
+        authXkeySeed: "NATS_AUTH_XKEY_SEED"
+      secretManagement:
+        enabled: true
+        includeXkeySeed: false
+      subjectRoot: "scot"
+      serviceAccounts:
+        authCallout:
+          username: "auth_callout_service"
+        api:
+          username: "api_service"
+          publish:
+            - "scot.irelement.>"
+            - "scot.notification.>"
+          subscribe:
+            - "scot.irelement.>"
+            - "scot.notification.>"
+        flair:
+          username: "flair_service"
+          publish:
+            - "FLAIR.work.>"
+          subscribe:
+            - "scot.irelement.>"
+            - "FLAIR.work.>"
+      callout:
+        enabled: false
+        account: "$G"
+        authUsers:
+          - "auth_callout_service"
+        issuer:
+          publicKey: ""
+        xkey:
+          publicKey: ""
+    authService:
+      enabled: true
+      repository: ghcr.io/sandialabs/scot4-nats-auth
+      tag: "1.0.2"
+      imagePullPolicy: "IfNotPresent"
+      numReplicas: 1
+      serviceName: "scot4-nats-auth"
+      containerPort: 8001
+      logLevel: "INFO"
+      whoamiUrl: "http://scot4-api-service:8000/api/v1/users/whoami"
+      whoamiTimeoutSeconds: "2.0"
+
   database:
     repository: mysql
     tag: "8.0"
     containerPort: 3306
-    databaseRootHost: "%"
+    rootPasswordSecret:
+      # Helm creates and retains this Secret. Set create=false when the named
+      # Secret and key are managed outside this chart.
+      create: true
+      name: "scot4-database-root-secrets"
+      key: "MYSQL_ROOT_PASSWORD"
+    networkPolicy:
+      enabled: true
     # for apiDatabaseName and apiDatabaseUser:
     # if changed and using internal db make sure to update SQLALCHEMY_DATABASE_URI in secrets to match
     apiDatabaseName: "scot4"
@@ -67,19 +200,19 @@ scot4:
     # api container image repository path
     repository: ghcr.io/sandialabs/scot4-api
     # api container image tag
-    tag: "4.6.0"
+    tag: "4.7.3"
     # api util container image repository path
     utilRepository: ghcr.io/sandialabs/scot4-api-util
     # api util container image tag
-    utilTag: "4.6.0"
+    utilTag: "4.7.3"
     # first superuser's email when creating account
     firstSuperUserEmail: "scot-admin@example.com"
     # first superuser's username
     firstSuperUserName: "scot-admin"
     # url to reach flair at, shouldn't need to change
-    flairHost: 'http://scot4-flair-service:3001'
+    flairHost: "http://scot4-flair-service:3001"
     # path to reach flair at, shouldn't need to change
-    flairHostEndpoint: '/api/v1/flair'
+    flairHostEndpoint: "/api/v1/flair"
     # placeholder path for enrichment logic, refer to api code
     enrichmentApiJobEndpoint: "/api/v1/dags/scot4_entity_[ENTITY_TYPE_PLACEHOLDER]_enrichment/dagRuns"
     # enrichment host, likely a deployed airflow instance
@@ -96,17 +229,17 @@ scot4:
     imagePullPolicy: "IfNotPresent"
     # url where the api will be accessible
     externalApiUri: "https://scot4.example.com/api/v1"
+    # url where the nats websocket will be accessible
+    externalNatsUri: "wss://scot4.example.com/nats"
     # For a production-like deployment, change this value to "PROD"
-    deploymentEnvironment: "Development"
+    deploymentEnvironment: "PROD"
     # number of concurrent api pods to run
     numReplicas: 16
     # number of pods that can be added when a helm upgrade occurs
     maxSurge: 8
-    # Protocol for communicating with nats service, should be nats for now
+    # Compatibility aliases for older templates. Keep these aligned with scot4.nats.connection.
     natsProtocol: "nats"
-    # Service address of nats unless using remote hosted instance
-    natsHost: "nats"
-    # Port of nats
+    natsHost: "scot4-nats"
     natsPort: 4222
     # Whether or not to start the MCP server
     mcpServerEnabled: false
@@ -114,15 +247,20 @@ scot4:
     storageCapacity: "30Gi"
     dbConnectionPoolSize: 6
     dbConnectionPoolOverflow: 10
-    gameIgnoreUsers: 'scot-admin'
+    dbConnectionPoolRecycle: 300
+    gameIgnoreUsers: "scot-admin"
     memoryRequests: "4Gi"
     memoryLimits: "8Gi"
+    livenessInitialDelaySeconds: 30
+    livenessTimeoutSeconds: 3
+    livenessPeriodSeconds: 10
+    livenessFailureThreshold: 10
 
   frontend:
     # frontend container image repository path
     repository: ghcr.io/sandialabs/scot4-web-app
     # frontend container image tag
-    tag: "4.6.0"
+    tag: "4.7.3"
     # url where the frontend will be accessible
     externalHostName: "scot4.example.com"
     # name of k8s secret that holds tls crt and key, should not need to change
@@ -134,7 +272,7 @@ scot4:
     # flair container image repository path
     repository: ghcr.io/sandialabs/scot4-flair
     # flair container image tag
-    tag: "4.6.0"
+    tag: "4.7.3"
     containerPort: 3001
     apiDatabaseName: "scot4"
     apiDatabaseUser: "scot4-db-user"
@@ -154,8 +292,8 @@ scot4:
     mojo_listen: "http://0.0.0.0:3001?reuse=1"
     mojo_workers: 5
     default_exp_time: 28800
-    admin_user: 'flairadmin'
-    admin_gecos: 'Flair Admin Entity'
+    admin_user: "flairadmin"
+    admin_gecos: "Flair Admin Entity"
     home_dir: "/opt/flair"
     flair_user: "flair"
     flair_group: "flair"
@@ -172,7 +310,14 @@ scot4:
       repository: mysql
       tag: "8.0"
       containerPort: 3306
-      databaseRootHost: "%"
+      rootPasswordSecret:
+        # Helm creates and retains this Secret. Set create=false when the named
+        # Secret and key are managed outside this chart.
+        create: true
+        name: "scot4-flair-database-root-secrets"
+        key: "MYSQL_ROOT_PASSWORD"
+      networkPolicy:
+        enabled: true
       databaseName: "flair"
       databaseUser: "flair"
       storageClassName: "local-path"
@@ -180,6 +325,9 @@ scot4:
 
   basicEnrich:
     enabled: false
+    networkPolicy:
+      # The bundled enrichment service should only receive requests from SCOT API.
+      enabled: true
     # basic enrich container image repository path
     repository: ghcr.io/sandialabs/scot4-basic-enrich
     # basic enrich container image tag
@@ -218,8 +366,8 @@ scot4:
       imapUsername: "username"
       imapPeek: 0
       inputQueue: "alertgroup"
-      clientClass: 'Scot::Inbox::Imap'
-      permittedSenders: '*'
+      clientClass: "Scot::Inbox::Imap"
+      permittedSenders: "*"
 
     dispatch:
       enabled: false
@@ -231,8 +379,8 @@ scot4:
       imapUsername: "username"
       imapPeek: 0
       inputQueue: "dispatch"
-      clientClass: 'Scot::Inbox::Imap'
-      permittedSenders: '*'
+      clientClass: "Scot::Inbox::Imap"
+      permittedSenders: "*"
 
     vulnfeed:
       enabled: false
@@ -244,8 +392,8 @@ scot4:
       imapUsername: "username"
       imapPeek: 0
       inputQueue: "vuln_feed"
-      clientClass: 'Scot::Inbox::Imap'
-      permittedSenders: '*'
+      clientClass: "Scot::Inbox::Imap"
+      permittedSenders: "*"
 
     event:
       enabled: false
@@ -257,8 +405,8 @@ scot4:
       imapUsername: "username"
       imapPeek: 0
       inputQueue: "event"
-      clientClass: 'Scot::Inbox::Imap'
-      permittedSenders: '*'
+      clientClass: "Scot::Inbox::Imap"
+      permittedSenders: "*"
 
   # This section is injected into all cronjobs
   # Mostly for maintenance so jobs don't pile up in the history
@@ -270,6 +418,8 @@ scot4:
       startingDeadlineSeconds: 180
 
   s3:
+    # Download the configured S3 bucket into a retained local PVC. This does
+    # not upload SCOT database or filesystem data to S3.
     backup_enabled: false
     storageCapacity: "200Gi"
     storageClassName: "local-path"
@@ -278,5 +428,6 @@ scot4:
       tag: "latest"
     imagePullPolicy: "IfNotPresent"
     endpointURL: "https://scot4.s3.example.com"
+    # Test credentials and connectivity without copying objects.
     testMode: true
     s3Address: "s3://scot4"

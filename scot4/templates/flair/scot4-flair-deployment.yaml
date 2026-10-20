@@ -30,13 +30,25 @@ spec:
       - name: scot4-flair-wait-for-db
         image: "{{ .Values.scot4.api.repository }}:{{ .Values.scot4.api.tag }}"
         imagePullPolicy: {{ .Values.scot4.api.imagePullPolicy }}
-        command: ['/bin/bash', '-c', 'echo -e "Checking for the availability of MySQL Server deployment"; while ! mysqladmin ping -h scot4-flair-db-service -u root -p$ROOT_DB_PASSWORD; do sleep 1; printf "-"; done; echo -e "  >> MySQL DB Server has started";']
+        command: ["/bin/bash", "-c"]
+        args:
+        - |
+          echo "Checking for the availability of the Flair database"
+          until MYSQL_PWD="$MYSQL_PASSWORD" mysql --protocol=TCP --host=scot4-flair-db-service --user="$MYSQL_USER" --database="$MYSQL_DATABASE" --execute="SELECT 1" >/dev/null 2>&1; do
+            sleep 1
+            printf "-"
+          done
+          echo "  >> Flair database is ready"
         env:
-          - name: ROOT_DB_PASSWORD
+          - name: MYSQL_USER
+            value: {{ .Values.scot4.flair.database.databaseUser | quote }}
+          - name: MYSQL_DATABASE
+            value: {{ .Values.scot4.flair.database.databaseName | quote }}
+          - name: MYSQL_PASSWORD
             valueFrom:
               secretKeyRef:
                 name: scot4-flair-secrets
-                key: ROOT_DB_PASSWORD
+                key: FLAIR_DB_PASSWORD
       {{- if .Values.scot4.cleanFlairInstall }}
       - name: scot4-flair-init
         imagePullPolicy: {{ .Values.scot4.flair.imagePullPolicy }}
@@ -74,6 +86,19 @@ spec:
             name: scot4-flair-secrets
         - configMapRef:
             name: scot4-flair-env-config
+        env:
+        - name: S4FLAIR_MOJO_SECRETS
+          valueFrom:
+            secretKeyRef:
+              name: scot4-flair-secrets
+              key: S4FLAIR_MOJO_SECRETS
+        - name: NATS_USERNAME
+          value: "{{ .Values.scot4.nats.auth.serviceAccounts.flair.username }}"
+        - name: NATS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.scot4.nats.auth.existingSecretName }}
+              key: {{ .Values.scot4.nats.auth.secretKeys.flairServicePassword }}
         command: ["/opt/perl/bin/hypnotoad", "-f", "/opt/flair/script/Flair"]
         ports:
         - containerPort: {{ .Values.scot4.flair.containerPort }}
@@ -137,6 +162,19 @@ spec:
             name: scot4-flair-secrets
         - configMapRef:
             name: scot4-flair-env-config
+        env:
+        - name: S4FLAIR_MOJO_SECRETS
+          valueFrom:
+            secretKeyRef:
+              name: scot4-flair-secrets
+              key: S4FLAIR_MOJO_SECRETS
+        - name: NATS_USERNAME
+          value: "{{ .Values.scot4.nats.auth.serviceAccounts.flair.username }}"
+        - name: NATS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.scot4.nats.auth.existingSecretName }}
+              key: {{ .Values.scot4.nats.auth.secretKeys.flairServicePassword }}
         command: ["/opt/flair/script/Flair", "minion", "worker", "-m", "production", "-j", "{{ .Values.scot4.flair.numMinionWorkers }}"]
         volumeMounts:
         - name: scot4-flair-opt-storage 
@@ -189,3 +227,6 @@ data:
   MOJO_REVERSE_PROXY: "{{ .Values.scot4.flair.mojoReverseProxy }}"
   S4FLAIR_SCOT_EXTERNAL_HOSTNAME: "{{ .Values.scot4.frontend.externalHostName }}"
   S4FLAIR_MYSQLDB_MIGRATION: "{{ .Values.scot4.flair.db_mysql_migration }}"
+  NATS_PROTOCOL: "{{ .Values.scot4.nats.connection.protocol | default .Values.scot4.api.natsProtocol }}"
+  NATS_HOST: "{{ .Values.scot4.nats.connection.host | default .Values.scot4.api.natsHost }}"
+  NATS_PORT: "{{ .Values.scot4.nats.connection.port | default .Values.scot4.api.natsPort }}"

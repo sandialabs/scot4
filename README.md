@@ -37,13 +37,26 @@ coming soon!
 
 This repository contains a helper install script that will install k3s, helm, and the SCOT4 containers necessary to run and test a SCOT4 instance.
 
-```
-useradd -m -s /bin/bash -c "SCOT4 User" scot4
-su - scot4
+SCOT4 is intended to run on a dedicated host and k3s cluster. The `scot4`
+account is a privileged platform-administrator account: the installer grants it
+sudo or wheel membership and installs the k3s cluster-admin kubeconfig in its
+home directory. Protect this account like a root account and do not use it to
+run unrelated services or workloads.
+
+Run the initial account creation and installation from an existing
+administrator account. Clone the repository as `scot4` so that subsequent
+SCOT4 administration can be performed by that account:
+
+```bash
+sudo useradd -m -s /bin/bash -c "SCOT4 User" scot4
+sudo -iu scot4
 git clone https://github.com/sandialabs/scot4.git
-cd scot4
-sudo ./install.sh 
+exit
+sudo /home/scot4/scot4/install.sh
 ```
+
+Existing installations should review [UPGRADE.md](UPGRADE.md) before applying
+a newer chart, particularly when the release changes secret ownership or layout.
 
 ## Join the SCOT Community
 
@@ -54,5 +67,3 @@ sudo ./install.sh
     - [https://github.com/sandialabs/scot4/discussions](https://github.com/sandialabs/scot4/discussions)
 * Mailing List:
     - [scot4all@sandia.gov](mailto:scot4all@sandia.gov)
-
-

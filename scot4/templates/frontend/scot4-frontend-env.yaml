@@ -3,5 +3,7 @@ kind: ConfigMap
 metadata:
   name: scot4-frontend-env-config
 data:
-  NO_PROXY: {{ .Values.scot4.common.noProxy }}
-  VUE_APP_API_BASE: {{ .Values.scot4.api.externalApiUri }}
+  NO_PROXY: "{{ .Values.scot4.common.noProxy }}"
+  VUE_APP_API_BASE: "{{ .Values.scot4.api.externalApiUri }}"
+  VUE_APP_NATS_BASE: "{{ .Values.scot4.api.externalNatsUri }}"
+  VUE_APP_NATS_SUBJECT_ROOT: "{{ .Values.scot4.nats.auth.subjectRoot }}"

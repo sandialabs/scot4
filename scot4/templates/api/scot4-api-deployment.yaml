@@ -50,13 +50,25 @@ spec:
       - name: scot4-wait-for-db
         image: "{{ .Values.scot4.api.repository }}:{{ .Values.scot4.api.tag }}"
         imagePullPolicy: {{ .Values.scot4.api.imagePullPolicy }}
-        command: ['/bin/bash', '-c', 'echo -e "Checking for the availability of MySQL Server deployment"; while ! mysqladmin ping -h scot4-db-service -u root -p$ROOT_DB_PASSWORD; do sleep 1; printf "-"; done; echo -e "  >> MySQL DB Server has started";']
+        command: ["/bin/bash", "-c"]
+        args:
+        - |
+          echo "Checking for the availability of the SCOT database"
+          until MYSQL_PWD="$MYSQL_PASSWORD" mysql --protocol=TCP --host=scot4-db-service --user="$MYSQL_USER" --database="$MYSQL_DATABASE" --execute="SELECT 1" >/dev/null 2>&1; do
+            sleep 1
+            printf "-"
+          done
+          echo "  >> SCOT database is ready"
         env:
-          - name: ROOT_DB_PASSWORD
+          - name: MYSQL_USER
+            value: {{ .Values.scot4.database.apiDatabaseUser | quote }}
+          - name: MYSQL_DATABASE
+            value: {{ .Values.scot4.database.apiDatabaseName | quote }}
+          - name: MYSQL_PASSWORD
             valueFrom:
               secretKeyRef:
                 name: scot4-env-secrets
-                key: ROOT_DB_PASSWORD
+                key: API_DB_PASSWORD
       {{- end }}
       {{- if .Values.scot4.rebuildApiDatabaseTables }}
       - name: scot4-api-create-new-tables
@@ -80,6 +92,30 @@ spec:
         - secretRef:
             name: scot4-env-secrets
       {{- end }}
+      - name: scot4-provision-search-api-key
+        imagePullPolicy: {{ .Values.scot4.api.imagePullPolicy }}
+        image: "{{ .Values.scot4.api.repository }}:{{ .Values.scot4.api.tag }}"
+        command: ["python", "/code/scripts/meilisearch_key.py"]
+        envFrom:
+        - configMapRef:
+            name: scot4-api-env-config
+        env:
+        - name: MEILI_MASTER_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.meilisearch.auth.existingMasterKeySecret }}
+              key: MEILI_MASTER_KEY
+        - name: SEARCH_API_KEY_UID
+          value: {{ .Values.scot4.search.apiKeyUid | quote }}
+        - name: SEARCH_API_KEY_FILE
+          value: {{ .Values.scot4.search.apiKeyFile | quote }}
+        - name: SEARCH_KEY_MAX_ATTEMPTS
+          value: {{ .Values.scot4.search.keyProvisioningMaxAttempts | quote }}
+        - name: SEARCH_KEY_RETRY_SECONDS
+          value: {{ .Values.scot4.search.keyProvisioningRetrySeconds | quote }}
+        volumeMounts:
+        - name: scot4-search-api-key
+          mountPath: {{ dir .Values.scot4.search.apiKeyFile }}
       containers:
       - image: "{{ .Values.scot4.api.repository }}:{{ .Values.scot4.api.tag }}"
         imagePullPolicy: {{ .Values.scot4.api.imagePullPolicy }}
@@ -89,11 +125,28 @@ spec:
             name: scot4-api-env-config
         - secretRef:
             name: scot4-env-secrets
-        command: ["fastapi", "run", "app/main.py", "--host", "0.0.0.0", "--port", "{{ .Values.scot4.api.containerPort }}", "--proxy-headers"]
+        env:
+        - name: MEILI_MASTER_KEY
+          value: ""
+        - name: NATS_USERNAME
+          value: "{{ .Values.scot4.nats.auth.serviceAccounts.api.username }}"
+        - name: NATS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.scot4.nats.auth.existingSecretName }}
+              key: {{ .Values.scot4.nats.auth.secretKeys.apiServicePassword }}
+        command: ["/bin/bash", "-c"]
+        args:
+        - |
+          export SEARCH_API_KEY="$(cat {{ .Values.scot4.search.apiKeyFile }})"
+          exec fastapi run app/main.py --host 0.0.0.0 --port {{ .Values.scot4.api.containerPort }} --proxy-headers
         volumeMounts:
         - name: scot4-api-files-storage 
           mountPath: /var/scot_files
           readOnly: false
+        - name: scot4-search-api-key
+          mountPath: {{ dir .Values.scot4.search.apiKeyFile }}
+          readOnly: true
         ports:
         - containerPort: {{ .Values.scot4.api.containerPort }}
           name: scot4-api
@@ -101,10 +154,10 @@ spec:
           httpGet:
             path: /api/v1/health/
             port: {{ .Values.scot4.api.containerPort }}
-          initialDelaySeconds: 30
-          timeoutSeconds: 3
-          periodSeconds: 10
-          failureThreshold: 10
+          initialDelaySeconds: {{ .Values.scot4.api.livenessInitialDelaySeconds }}
+          timeoutSeconds: {{ .Values.scot4.api.livenessTimeoutSeconds }}
+          periodSeconds: {{ .Values.scot4.api.livenessPeriodSeconds }}
+          failureThreshold: {{ .Values.scot4.api.livenessFailureThreshold }}
         resources:
           requests:
             memory: {{ .Values.scot4.api.memoryRequests }}
@@ -114,6 +167,10 @@ spec:
       - name: scot4-api-files-storage 
         persistentVolumeClaim:
           claimName: scot4-api-pv-claim
+      - name: scot4-search-api-key
+        emptyDir:
+          medium: Memory
+          sizeLimit: 1Mi
       securityContext:
         runAsUser: 3000
         runAsGroup: 3000

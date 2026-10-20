@@ -2,11 +2,11 @@
 
 set_defaults () {
     BASHRC=/home/scot4/.bashrc
-    # update HELM and TRAEFIK to desired versions
-    # HELM_VERSION="v3.14.3"
-    HELM_VERSION="v3.19.0"
-    # TRAEFIK_MW_VER="v3.3.2"
-    TRAEFIK_MW_VER="v3.3.6"
+    K3S_VERSION="v1.36.4+k3s1"
+    K3S_INSTALLER_URL="https://raw.githubusercontent.com/k3s-io/k3s/v1.36.4%2Bk3s1/install.sh"
+    K3S_INSTALLER_SHA256="46177d4c99440b4c0311b67233823a8e8a2fc09693f6c89af1a7161e152fbfad"
+    HELM_VERSION="v4.3.0"
+    HELM_SHA256="86584a54def73570558f66f5111cc53dfed56689637ae32c1201205d494f54fb"
 
     # pick up the server's name
     SERVERNAME=$(hostname)
@@ -56,15 +56,53 @@ set_defaults () {
     export KUBECONFIG=$KUBECONFIGDIR/config
 }
 
+INSTALL_TMP_DIR=""
+
+cleanup_install_tmp_dir () {
+    if [ -n "$INSTALL_TMP_DIR" ] && [ -d "$INSTALL_TMP_DIR" ]; then
+        rm -rf -- "$INSTALL_TMP_DIR"
+    fi
+}
+
+ensure_install_tmp_dir () {
+    if [ -z "$INSTALL_TMP_DIR" ]; then
+        INSTALL_TMP_DIR=$(mktemp -d /tmp/scot4-install.XXXXXXXX)
+        if [ -z "$INSTALL_TMP_DIR" ] || [ ! -d "$INSTALL_TMP_DIR" ]; then
+            echo "    !!! Unable to create a private temporary directory !!!"
+            return 1
+        fi
+    fi
+}
+
+download_verified_file () {
+    local url=$1
+    local destination=$2
+    local expected_sha256=$3
+
+    if ! curl -fsSL --output "$destination" "$url"; then
+        echo "    !!! Download failed: $url !!!"
+        return 1
+    fi
+
+    if ! printf '%s  %s\n' "$expected_sha256" "$destination" | sha256sum --check --status; then
+        echo "    !!! SHA-256 verification failed: $destination !!!"
+        echo "    Expected: $expected_sha256"
+        echo "    Actual:   $(sha256sum "$destination" | awk '{print $1}')"
+        return 1
+    fi
+}
+
+trap cleanup_install_tmp_dir EXIT
+
 output_variables () {
     echo "---"
     echo "--- SCOT4 Install Variables "
     echo "---"
     echo "    BASE_DIR        = $BASE_DIR"
     echo "    OS              = $OS"
+    echo "    K3s Version     = $K3S_VERSION"
     echo "    Server Name     = $SERVERNAME"
     echo "    Helm Version    = $HELM_VERSION"
-    echo "    Traefik Vers    = $TRAEFIK_MW_VER"
     echo "    TLS CRT FILE    = $TLS_CRT_FILE"
     echo "    TLS_KEY_FILE    = $TLS_KEY_FILE"
     echo "    SQLAlchemy URI  = $SQLALCHEMY_DATABASE_URI"
@@ -135,7 +173,7 @@ set_defaults
 echo "---"
 echo "--- Parsing Command Line..."
 echo "---"
-while getopts "a:b:c:d:e:ghi:k:m:n:P:p:r:R:s:t:v:x:y:" opt "$@"; do
+while getopts "a:b:c:d:e:gi:k:n:P:p:r:R:s:t:v:x:y:" opt "$@"; do
     case "${opt}" in
         a)
             AIRFLOW=${OPTARG}
@@ -156,17 +194,11 @@ while getopts "a:b:c:d:e:ghi:k:m:n:P:p:r:R:s:t:v:x:y:" opt "$@"; do
         g)
             PAUSE="true"
             ;;
-        h)
-            HELM_VERSION=${OPTARG}
-            ;;
         i)
             IPADDR=${OPTARG}
             ;;
         k)
             TLS_KEY_FILE=${OPTARG}
-            ;;
-        m) 
-            TRAEFIK_MW_VER=${OPTARG}
             ;;
         n)
             NO_PROXY=${OPTARG}
@@ -263,10 +295,32 @@ fi
 
 if [ "$TLS_CRT_FILE" = "" ] && [ "$TLS_KEY_FILE" = "" ];then
     SD="/home/scot4/.scotssl"
+    if [ -L "$SD" ]; then
+        echo "    !!! Refusing to use symbolic link for self-signed TLS directory $SD !!!"
+        exit 1
+    fi
+
+    if ! mkdir -p "$SD" || ! chown scot4:scot4 "$SD" || ! chmod 700 "$SD"; then
+        echo "    !!! Failed to secure self-signed TLS directory $SD !!!"
+        exit 1
+    fi
+
+    for TLS_FILE in "$SD/$SERVERNAME.crt" "$SD/$SERVERNAME.csr" "$SD/$SERVERNAME.key"; do
+        if [ -L "$TLS_FILE" ]; then
+            echo "    !!! Refusing to use symbolic link for self-signed TLS file $TLS_FILE !!!"
+            exit 1
+        fi
+    done
+
     if [ -f "$SD/$SERVERNAME.crt" ] && [ -f "$SD/$SERVERNAME.csr" ] && [ -f "$SD/$SERVERNAME.key" ]; then
         echo "Using existing self signed certs..."
         TLS_CRT_FILE="$SD/$SERVERNAME.crt"
         TLS_KEY_FILE="$SD/$SERVERNAME.key"
+
+        if ! chown scot4:scot4 "$TLS_CRT_FILE" "$SD/$SERVERNAME.csr" "$TLS_KEY_FILE" || ! chmod 600 "$TLS_KEY_FILE"; then
+            echo "    !!! Failed to secure existing self-signed TLS files !!!"
+            exit 1
+        fi
     else
         echo "Self Signed Cert Generation Begins..."
         echo "!!!"
@@ -274,16 +328,28 @@ if [ "$TLS_CRT_FILE" = "" ] && [ "$TLS_KEY_FILE" = "" ];then
         echo "!!!"
 
         TARGETDIR="/home/scot4/.scotssl"
-        mkdir -p $TARGETDIR
         KEYFILE="$TARGETDIR/$SERVERNAME.key"
         CSRFILE="$TARGETDIR/$SERVERNAME.csr"
         CRTFILE="$TARGETDIR/$SERVERNAME.crt"
-        openssl genrsa -out $KEYFILE 2048
-        openssl req -key $KEYFILE -new -out $CSRFILE
-        openssl x509 -signkey $KEYFILE -in $CSRFILE -req -days 365 -out $CRTFILE
+
+        if ! (
+            umask 077
+            openssl genrsa -out "$KEYFILE" 2048 &&
+                chmod 600 "$KEYFILE" &&
+                openssl req -key "$KEYFILE" -new -out "$CSRFILE" &&
+                openssl x509 -signkey "$KEYFILE" -in "$CSRFILE" -req -days 365 -out "$CRTFILE"
+        ); then
+            echo "    !!! Self-signed TLS certificate generation failed !!!"
+            exit 1
+        fi
+
+        if ! chown scot4:scot4 "$KEYFILE" "$CSRFILE" "$CRTFILE" || ! chmod 600 "$KEYFILE"; then
+            echo "    !!! Failed to secure generated self-signed TLS files !!!"
+            exit 1
+        fi
+
         TLS_CRT_FILE=$CRTFILE
         TLS_KEY_FILE=$KEYFILE
-        chown -R scot4 $TARGETDIR
     fi
 fi
 
@@ -389,8 +455,6 @@ echo "---"
 if [ -e /usr/bin/firewall-cmd ]; then
     FWSTATUS=$(systemctl is-active firewalld)
     if [ "$FWSTATUS" == "active" ]; then
-        # api server
-        firewall-cmd --permanent --add-port=6443/tcp
         # pods
         firewall-cmd --permanent --zone=trusted --add-source=10.42.0.0/16 
         # services
@@ -402,7 +466,6 @@ if [ -e /usr/bin/firewall-cmd ]; then
 else
     if [ -e /usr/sbin/ufw ]; then
         if ufw status | grep -qw active; then
-            ufw allow 6443/tcp                  # apiserver
             ufw allow from 10.42.0.0/16 to any  # pods
             ufw allow from 10.43.0.0/16 to any  # services
         else
@@ -507,25 +570,61 @@ echo "--- Installing K3S..."
 echo "---"
 if ! type /usr/local/bin/k3s >/dev/null 2>/dev/null; then
     echo "Installing k3s..."
-    set -x
-    curl -sfLl https://get.k3s.io | INSTALL_K3S_EXEC="--prefer-bundled-bin --disable-cloud-controller $SELINUX" sh -
-    if [ $? -ne 0 ]; then
-        echo "    !!! Download of K3s failed !!!"
+    if ! ensure_install_tmp_dir; then
         exit 4
     fi
-    set +x
+
+    K3S_INSTALLER="$INSTALL_TMP_DIR/install-k3s.sh"
+    if ! download_verified_file "$K3S_INSTALLER_URL" "$K3S_INSTALLER" "$K3S_INSTALLER_SHA256"; then
+        echo "    !!! Secure download of K3s installer failed !!!"
+        exit 4
+    fi
+
+    if ! INSTALL_K3S_VERSION="$K3S_VERSION" INSTALL_K3S_EXEC="--prefer-bundled-bin --disable-cloud-controller $SELINUX" sh "$K3S_INSTALLER"; then
+        echo "    !!! Installation of K3s failed !!!"
+        exit 4
+    fi
 else 
-    echo "    K3S already installed."
+    INSTALLED_K3S_VERSION=$(/usr/local/bin/k3s --version 2>/dev/null | awk 'NR == 1 {print $3}')
+    echo "    K3s is already installed; leaving it unchanged."
+    echo "    Installed version: ${INSTALLED_K3S_VERSION:-unknown}"
+    echo "    Installer version: $K3S_VERSION"
+    if [ "$INSTALLED_K3S_VERSION" != "$K3S_VERSION" ]; then
+        echo "    To upgrade, first back up the cluster and review:"
+        echo "    https://docs.k3s.io/upgrades/manual"
+        echo "    Use the pinned installer at $K3S_INSTALLER_URL"
+        echo "    and verify its SHA-256 is $K3S_INSTALLER_SHA256 before running it."
+        echo "    Then run the verified file with INSTALL_K3S_VERSION=$K3S_VERSION"
+        echo "    and INSTALL_K3S_EXEC='--prefer-bundled-bin --disable-cloud-controller $SELINUX'."
+    fi
 fi
 
 echo "---"
 echo "--- Setting up Kubectl aliases..."
 echo "---"
-mkdir -p $KUBECONFIGDIR
-cp /etc/rancher/k3s/k3s.yaml $KUBECONFIG
-chown -R scot4:scot4 $KUBECONFIGDIR
-export KUBECONFIG=$KUBECONFIG
-ls -l $KUBECONFIGDIR
+if [ -L "$KUBECONFIGDIR" ]; then
+    echo "    !!! Refusing to use symbolic link for kubeconfig directory $KUBECONFIGDIR !!!"
+    exit 1
+fi
+
+if [ -L "$KUBECONFIG" ]; then
+    echo "    !!! Refusing to overwrite symbolic link at $KUBECONFIG !!!"
+    exit 1
+fi
+
+if ! mkdir -p "$KUBECONFIGDIR" || ! chown scot4:scot4 "$KUBECONFIGDIR" || ! chmod 700 "$KUBECONFIGDIR"; then
+    echo "    !!! Failed to secure kubeconfig directory $KUBECONFIGDIR !!!"
+    exit 1
+fi
+
+if ! install -o scot4 -g scot4 -m 0600 /etc/rancher/k3s/k3s.yaml "$KUBECONFIG"; then
+    echo "    !!! Failed to install kubeconfig $KUBECONFIG !!!"
+    exit 1
+fi
+
+export KUBECONFIG="$KUBECONFIG"
+ls -ld "$KUBECONFIGDIR"
+ls -l "$KUBECONFIG"
 
 
 KENV="/etc/systemd/system/k3s.service.env"
@@ -583,39 +682,36 @@ until $KUBECTL get ns; do
     fi
 done
 
-echo "=== awaiting completion of traefik install"
-# wait until traefic is installed
-TRYCOUNT=0
-until [ $($KUBECTL -n kube-system get pods | grep helm-install-traefik | grep -i completed | wc -l) -eq 2 ]; do
-    $KUBECTL -n kube-system get pods
-    echo "    Traefik not installed yet..."
-    sleep 15
-    TRYCOUNT=$((TRYCOUNT + 1))
-    if [ $TRYCOUNT -ge 10 ]; then
-        echo "    !!! giving up after 10 tries."
-        echo ""
-        echo "    k3s install may have had an error.  Try these step:"
-        echo "        1. uninstall k3s.   sudo /usr/local/bin/k3s-uninstall.sh"
-        echo "        2. remove dir.      sudo rm -rf /etc/rancher/node"
-        echo "        3. restart install. sudo ./install.sh"
-        echo ""
+echo "=== awaiting completion of traefik CRD and controller installs"
+for TRAEFIK_JOB in helm-install-traefik-crd helm-install-traefik; do
+    TRYCOUNT=0
+    until $KUBECTL -n kube-system get "job/$TRAEFIK_JOB" >/dev/null 2>&1; do
+        echo "    Waiting for $TRAEFIK_JOB to be created..."
+        sleep 15
+        TRYCOUNT=$((TRYCOUNT + 1))
+        if [ $TRYCOUNT -ge 20 ]; then
+            echo "    !!! $TRAEFIK_JOB was not created within five minutes."
+            exit 1
+        fi
+    done
+
+    if ! $KUBECTL -n kube-system wait --for=condition=complete "job/$TRAEFIK_JOB" --timeout=10m; then
+        echo "    !!! $TRAEFIK_JOB did not complete successfully."
         exit 1
     fi
 done
-$KUBECTL -n kube-system get pods
-echo "    traefik appears to be installed and ready"
 
+if ! $KUBECTL wait --for=condition=Established crd/middlewares.traefik.io --timeout=2m; then
+    echo "    !!! Traefik Middleware CRD was not established."
+    exit 1
+fi
 
-echo "==="
-echo "=== installing traefik middleware"
-echo "==="
-# install traefik middlware CRDs
-if $KUBECTL apply -f https://raw.githubusercontent.com/traefik/traefik/refs/tags/$TRAEFIK_MW_VER/docs/content/reference/dynamic-configuration/traefik.io_middlewares.yaml; then
-     echo "    applied traefik middleware config"
- else
-     echo "    !!! failed to apply traefik config"
-     exit 1
- fi
+if ! $KUBECTL -n kube-system rollout status deployment/traefik --timeout=5m; then
+    echo "    !!! Traefik deployment did not become ready."
+    exit 1
+fi
+
+echo "    Traefik CRDs and controller are ready"
 
 
 echo "---"
@@ -624,15 +720,30 @@ echo "---"
 if ! type /usr/local/bin/helm >/dev/null 2>/dev/null; then
     echo "    Installing Helm..."
     HELM_TAR="helm-$HELM_VERSION-linux-amd64.tar.gz"
-    curl -sfl -o /tmp/$HELM_TAR https://get.helm.sh/$HELM_TAR
-    if [ $? -ne 0 ]; then
-        echo "    !!! Download of HELM failed !!!"
+    if ! ensure_install_tmp_dir; then
         exit 5
     fi
-    tar zxvf /tmp/$HELM_TAR -C /tmp
-    mv /tmp/linux-amd64/helm /usr/local/bin/helm
+
+    HELM_ARCHIVE="$INSTALL_TMP_DIR/$HELM_TAR"
+    if ! download_verified_file "https://get.helm.sh/$HELM_TAR" "$HELM_ARCHIVE" "$HELM_SHA256"; then
+        echo "    !!! Secure download of Helm failed !!!"
+        exit 5
+    fi
+
+    if ! tar -xzf "$HELM_ARCHIVE" -C "$INSTALL_TMP_DIR"; then
+        echo "    !!! Extraction of Helm failed !!!"
+        exit 5
+    fi
+
+    if ! install -o root -g root -m 0755 "$INSTALL_TMP_DIR/linux-amd64/helm" /usr/local/bin/helm; then
+        echo "    !!! Installation of Helm failed !!!"
+        exit 5
+    fi
 else 
-    echo "    Helm already installed."
+    INSTALLED_HELM_VERSION=$(/usr/local/bin/helm version --short 2>/dev/null | awk '{print $1}')
+    echo "    Helm is already installed; leaving it unchanged."
+    echo "    Installed version: ${INSTALLED_HELM_VERSION:-unknown}"
+    echo "    Installer version: $HELM_VERSION"
 fi
 
 
@@ -765,7 +876,7 @@ PS3="Select deployment option > "
 select dopt in clean redeploy modify quit; do
     case $dopt in
         clean)
-            $RUNAS $INSTFUNC/inst_upgrade_chart.sh $HELM
+            $RUNAS $INSTFUNC/inst_clean_upgrade_chart.sh $HELM
             break
             ;;
         redeploy)
@@ -823,4 +934,3 @@ echo "PASSWORD   =   $PW"
 #fi
 
 exit 0
-

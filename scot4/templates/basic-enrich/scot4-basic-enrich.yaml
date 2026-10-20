@@ -46,6 +46,26 @@ spec:
         date: "{{ now | unixEpoch }}"
         {{- end }}
     spec:
+      initContainers:
+      - name: scot4-basic-enrich-validate-password
+        image: "{{ .Values.scot4.basicEnrich.repository }}:{{ .Values.scot4.basicEnrich.tag }}"
+        imagePullPolicy: {{ .Values.scot4.basicEnrich.imagePullPolicy }}
+        command: ["/bin/sh", "-ec"]
+        args:
+        - |
+          case "${BASIC_AUTH_PASSWORD:-}" in
+            ""|"UPDATE-ME"|"<Cyberflow Password>")
+              echo "ERROR: basicEnrich is enabled, but scot4-env-secrets/ENRICHMENT_PASSWORD is unset or still a placeholder." >&2
+              echo "Set ENRICHMENT_PASSWORD to the credential shared by SCOT API and Basic Enrich, then redeploy." >&2
+              exit 1
+              ;;
+          esac
+        env:
+        - name: BASIC_AUTH_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: scot4-env-secrets
+              key: ENRICHMENT_PASSWORD
       containers:
       - image: "{{ .Values.scot4.basicEnrich.repository }}:{{ .Values.scot4.basicEnrich.tag }}"
         imagePullPolicy: {{ .Values.scot4.basicEnrich.imagePullPolicy }}

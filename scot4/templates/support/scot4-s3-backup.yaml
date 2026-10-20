@@ -42,16 +42,20 @@ spec:
             envFrom:
             - secretRef:
                 name: scot4-inbox-s3-backup-secrets
+            command:
+            - aws
+            args:
             {{- if .Values.scot4.s3.testMode }}
-            command:
-            - /bin/sh
-            - c
-            - aws s3 ls --endpoint-url={{ .Values.scot4.s3.endpointURL }}
+            - s3
+            - ls
+            - {{ .Values.scot4.s3.s3Address | quote }}
+            - {{ printf "--endpoint-url=%s" .Values.scot4.s3.endpointURL | quote }}
             {{- else }}
-            command:
-            - /bin/sh
-            - -c
-            - aws s3 sync {{ .Values.scot4.s3.s3Address }} /mnt/backup --endpoint-url={{ .Values.scot4.s3.endpointURL }}
+            - s3
+            - sync
+            - {{ .Values.scot4.s3.s3Address | quote }}
+            - /mnt/backup
+            - {{ printf "--endpoint-url=%s" .Values.scot4.s3.endpointURL | quote }}
             {{- end }}
             volumeMounts:
             - name: scot4-inbox-s3-backup-data-storage

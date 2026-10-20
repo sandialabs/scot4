@@ -1,0 +1,27 @@
+{{- if .Values.scot4.search.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: scot4-search-ingress
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: {{ .Values.meilisearch.nameOverride | default "meilisearch" }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: scot4-api
+        - podSelector:
+            matchLabels:
+              app: scot4-search-init
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: {{ .Values.meilisearch.nameOverride | default "meilisearch" }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.meilisearch.service.port }}
+{{- end }}

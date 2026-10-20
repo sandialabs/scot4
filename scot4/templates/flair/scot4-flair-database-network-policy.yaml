@@ -1,0 +1,23 @@
+{{- if .Values.scot4.flair.database.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: scot4-flair-database-ingress
+spec:
+  podSelector:
+    matchLabels:
+      app: scot4-flair-db
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: scot4-flair
+        - podSelector:
+            matchLabels:
+              app: scot4-flair-minions
+      ports:
+        - protocol: TCP
+          port: {{ .Values.scot4.flair.database.containerPort }}
+{{- end }}

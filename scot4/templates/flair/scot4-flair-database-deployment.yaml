@@ -37,8 +37,8 @@ spec:
           - name: MYSQL_ROOT_PASSWORD
             valueFrom:
               secretKeyRef:
-                name: scot4-flair-secrets
-                key: ROOT_DB_PASSWORD
+                name: {{ required "scot4.flair.database.rootPasswordSecret.name is required for the Flair database" .Values.scot4.flair.database.rootPasswordSecret.name | quote }}
+                key: {{ required "scot4.flair.database.rootPasswordSecret.key is required for the Flair database" .Values.scot4.flair.database.rootPasswordSecret.key | quote }}
           - name: MYSQL_PASSWORD
             valueFrom:
               secretKeyRef:
