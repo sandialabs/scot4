@@ -1,0 +1,87 @@
+{{- if .Values.scot4.nats.authService.enabled }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: scot4-nats-auth-config
+data:
+  WHOAMI_URL: "{{ .Values.scot4.nats.authService.whoamiUrl }}"
+  WHOAMI_TIMEOUT_SECONDS: "{{ .Values.scot4.nats.authService.whoamiTimeoutSeconds }}"
+  LOG_LEVEL: "{{ .Values.scot4.nats.authService.logLevel }}"
+  NO_PROXY: "{{ .Values.scot4.common.noProxy }}"
+  no_proxy: "{{ .Values.scot4.common.noProxy }}"
+  NATS_PROTOCOL: "{{ .Values.scot4.nats.connection.protocol }}"
+  NATS_HOST: "{{ .Values.scot4.nats.connection.host }}"
+  NATS_PORT: "{{ .Values.scot4.nats.connection.port }}"
+  NATS_AUTH_SUBJECT: "$SYS.REQ.USER.AUTH"
+  NATS_AUTH_ACCOUNT: "{{ .Values.scot4.nats.auth.callout.account }}"
+  NATS_SUBJECT_ROOT: "{{ .Values.scot4.nats.auth.subjectRoot }}"
+  AUTH_CALLOUT_USERNAME: "{{ .Values.scot4.nats.auth.serviceAccounts.authCallout.username }}"
+  API_SERVICE_USERNAME: "{{ .Values.scot4.nats.auth.serviceAccounts.api.username }}"
+  FLAIR_SERVICE_USERNAME: "{{ .Values.scot4.nats.auth.serviceAccounts.flair.username }}"
+  API_SERVICE_PUBLISH_SUBJECTS: "{{ join "," .Values.scot4.nats.auth.serviceAccounts.api.publish }}"
+  API_SERVICE_SUBSCRIBE_SUBJECTS: "{{ join "," .Values.scot4.nats.auth.serviceAccounts.api.subscribe }}"
+  FLAIR_SERVICE_PUBLISH_SUBJECTS: "{{ join "," .Values.scot4.nats.auth.serviceAccounts.flair.publish }}"
+  FLAIR_SERVICE_SUBSCRIBE_SUBJECTS: "{{ join "," .Values.scot4.nats.auth.serviceAccounts.flair.subscribe }}"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.scot4.nats.authService.serviceName }}
+spec:
+  ports:
+  - port: {{ .Values.scot4.nats.authService.containerPort }}
+    targetPort: {{ .Values.scot4.nats.authService.containerPort }}
+  selector:
+    app: scot4-nats-auth
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: scot4-nats-auth
+spec:
+  replicas: {{ .Values.scot4.nats.authService.numReplicas }}
+  selector:
+    matchLabels:
+      app: scot4-nats-auth
+  template:
+    metadata:
+      labels:
+        app: scot4-nats-auth
+        {{- if .Values.scot4.forcePodRedeploy }}
+        date: "{{ now | unixEpoch }}"
+        {{- end }}
+    spec:
+      containers:
+      - image: "{{ .Values.scot4.nats.authService.repository }}:{{ .Values.scot4.nats.authService.tag }}"
+        imagePullPolicy: {{ .Values.scot4.nats.authService.imagePullPolicy }}
+        name: scot4-nats-auth
+        envFrom:
+        - configMapRef:
+            name: scot4-nats-auth-config
+        - secretRef:
+            name: {{ .Values.scot4.nats.auth.existingSecretName }}
+        ports:
+        - containerPort: {{ .Values.scot4.nats.authService.containerPort }}
+          name: http
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: {{ .Values.scot4.nats.authService.containerPort }}
+          initialDelaySeconds: 15
+          timeoutSeconds: 3
+          periodSeconds: 10
+          failureThreshold: 6
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: {{ .Values.scot4.nats.authService.containerPort }}
+          initialDelaySeconds: 5
+          timeoutSeconds: 3
+          periodSeconds: 10
+          failureThreshold: 3
+      {{- if (lookup "v1" "Secret" .Release.Namespace "scot4-image-pull-secret") }}
+      imagePullSecrets:
+      - name: scot4-image-pull-secret
+      {{- end }}
+{{- end }}

@@ -3,11 +3,13 @@
 SDURI=$1
 BASEDIR=$2
 KCTL="/usr/local/bin/kubectl"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export KUBECONFIG="/home/scot4/.kube/config"
 
 GET="-n scot4 get secret scot4-env-secrets"
 if $KCTL $GET; then
     echo "scot4-env-secrets already exist"
+    "$SCRIPT_DIR/inst_backfill_flair_mojo_secret.sh"
     exit 0
 fi
 
@@ -28,8 +30,9 @@ fi
 
 SFILE1="$BASEDIR/scot4/auto_gen_secrets.yaml"
 SFILE2="$BASEDIR/scot4/auto_gen_flair_secrets.yaml"
+SFILE3="$BASEDIR/scot4/auto_gen_nats_secrets.yaml"
 
-for FILE in $SFILE1 $SFILE2; do
+for FILE in $SFILE1 $SFILE2 $SFILE3; do
     if $KCTL -n scot4 apply -f $FILE; then
         echo "applied $FILE successfully"
     else
@@ -37,5 +40,6 @@ for FILE in $SFILE1 $SFILE2; do
         exit 1
     fi
 done
-exit 0
 
+"$SCRIPT_DIR/inst_backfill_flair_mojo_secret.sh"
+exit 0

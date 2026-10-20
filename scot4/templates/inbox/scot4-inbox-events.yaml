@@ -86,7 +86,6 @@ data:
   S4INBOX_GRAPH_SCOPE: "{{ .Values.scot4.inbox.event.graphScope }}"
   S4INBOX_GRAPH_TENET_ID: "{{ .Values.scot4.inbox.event.graphTenetId }}"
   S4INBOX_GRAPH_CLIENT_ID: "{{ .Values.scot4.inbox.event.graphClientId }}"
-  S4INBOX_GRAPH_CLIENT_SECRET: "{{ .Values.scot4.inbox.event.clientSecret }}"
   S4INBOX_GRAPH_USERADDRESS: "{{ .Values.scot4.inbox.event.clientUserAddress }}"
   S4INBOX_PERMITTED_SENDERS: "{{ .Values.scot4.inbox.event.permittedSenders }}"
   S4INBOX_LOG_LEVEL: "{{ .Values.scot4.inbox.event.logLevel }}"

@@ -1,0 +1,15 @@
+# Generated secret manifests
+auto_gen_secrets.yaml
+auto_gen_flair_secrets.yaml
+auto_gen_nats_secrets.yaml
+
+# Private/local Helm overrides
+private-values*.yaml
+*.private-values.yaml
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+
+# DS_stores
+.DS_Store

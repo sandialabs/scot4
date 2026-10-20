@@ -1,0 +1,4 @@
+{{- if .Values.meilisearch.environment.MEILI_MASTER_KEY }}
+{{- fail "meilisearch.environment.MEILI_MASTER_KEY must not be stored in a ConfigMap; use meilisearch.auth.existingMasterKeySecret" }}
+{{- end }}
+{{- $_ := required "meilisearch.auth.existingMasterKeySecret is required for scoped API-key provisioning" .Values.meilisearch.auth.existingMasterKeySecret }}

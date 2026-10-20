@@ -5,19 +5,34 @@ metadata:
   name: scot4-api-db-management
 spec:
   template:
+    metadata:
+      labels:
+        app: scot4-api-db-management
     spec:
       restartPolicy: "Never"
       initContainers:
       - name: scot4-wait-for-db
         image: "{{ .Values.scot4.api.repository }}:{{ .Values.scot4.api.tag }}"
         imagePullPolicy: {{ .Values.scot4.api.imagePullPolicy }}
-        command: ['/bin/bash', '-c', 'echo -e "Checking for the availability of MySQL Server deployment"; while ! mysqladmin ping -h scot4-db-service -u root -p$ROOT_DB_PASSWORD; do sleep 1; printf "-"; done; echo -e "  >> MySQL DB Server has started";']
+        command: ["/bin/bash", "-c"]
+        args:
+        - |
+          echo "Checking for the availability of the SCOT database"
+          until MYSQL_PWD="$MYSQL_PASSWORD" mysql --protocol=TCP --host=scot4-db-service --user="$MYSQL_USER" --database="$MYSQL_DATABASE" --execute="SELECT 1" >/dev/null 2>&1; do
+            sleep 1
+            printf "-"
+          done
+          echo "  >> SCOT database is ready"
         env:
-          - name: ROOT_DB_PASSWORD
+          - name: MYSQL_USER
+            value: {{ .Values.scot4.database.apiDatabaseUser | quote }}
+          - name: MYSQL_DATABASE
+            value: {{ .Values.scot4.database.apiDatabaseName | quote }}
+          - name: MYSQL_PASSWORD
             valueFrom:
               secretKeyRef:
                 name: scot4-env-secrets
-                key: ROOT_DB_PASSWORD
+                key: API_DB_PASSWORD
       containers:
       - name: scot4-api-wipe-db
         imagePullPolicy: {{ .Values.scot4.api.imagePullPolicy }}

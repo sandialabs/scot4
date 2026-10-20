@@ -27,6 +27,7 @@ spec:
             name: scot4-api-service
             port:
               number: {{ .Values.scot4.api.containerPort }}
+      {{- if .Values.scot4.api.mcpServerEnabled }}
       - path: /mcp
         pathType: Prefix
         backend:
@@ -76,6 +77,7 @@ spec:
             name: scot4-api-service
             port:
               number: {{ .Values.scot4.api.containerPort }}
+      {{- end }}
       - path: /flair-ui
         pathType: Prefix
         backend:
@@ -83,13 +85,15 @@ spec:
             name: scot4-flair-service
             port:
               number: {{ .Values.scot4.flair.containerPort }}
-      - path: /nats
+      {{- if .Values.scot4.nats.websocket.enabled }}
+      - path: {{ .Values.scot4.nats.websocket.ingressPath }}
         pathType: Prefix
         backend:
           service:
-            name: nats
+            name: {{ .Values.scot4.nats.websocket.serviceName }}
             port:
-              number: 8080
+              number: {{ .Values.scot4.nats.websocket.servicePort }}
+      {{- end }}
 ---
 apiVersion: traefik.io/v1alpha1
 kind: Middleware

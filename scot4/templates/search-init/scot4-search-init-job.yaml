@@ -6,6 +6,9 @@ metadata:
 spec:
   # ttlSecondsAfterFinished: 100
   template:
+    metadata:
+      labels:
+        app: scot4-search-init
     spec:
       initContainers:
       - name: scot4-search-wait-for-api
@@ -15,8 +18,6 @@ spec:
         envFrom:
         - configMapRef:
             name: scot4-api-env-config
-        - secretRef:
-            name: scot4-env-secrets
       containers:
       - name: scot4-search-init
         imagePullPolicy: {{ .Values.scot4.api.imagePullPolicy }}
@@ -27,6 +28,12 @@ spec:
             name: scot4-api-env-config
         - secretRef:
             name: scot4-env-secrets
+        env:
+        - name: SEARCH_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.meilisearch.auth.existingMasterKeySecret }}
+              key: MEILI_MASTER_KEY
       restartPolicy: Never
       {{- if (lookup "v1" "Secret" .Release.Namespace "scot4-image-pull-secret") }}
       imagePullSecrets:

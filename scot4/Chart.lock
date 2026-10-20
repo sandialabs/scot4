@@ -1,0 +1,9 @@
+dependencies:
+- name: nats
+  repository: https://nats-io.github.io/k8s/helm/charts/
+  version: 2.14.2
+- name: meilisearch
+  repository: file://charts/meilisearch
+  version: 0.1.50
+digest: sha256:2d71b67862bc5c48dc5db42bf61a03b6fb07d61a81f3b0978a211fd7071c8dff
+generated: "2026-07-20T10:44:13.503427-05:00"
